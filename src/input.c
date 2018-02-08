@@ -76,17 +76,17 @@ void read_parameters(struct parameters* p, int argc, char **argv)
     int ch;
 
     /* set defaults */
-    p->N = 150;
-    p->M = 100;
-    p->maxiter = 42;
+    p->N = 2000;
+    p->M = 2000;
+    p->maxiter = 100;
     p->period = 1000;
     p->threshold = 0.1;
     p->io_tmin = -100.0;
     p->io_tmax = 100.0;
     p->nthreads = 1;
     p->printreports = 0;
-    conductivity_fname = "./../../images/plasma_100x150.pgm";
-    tinit_fname = "./../../images/pat1_100x150.pgm";
+    conductivity_fname = "./../../images/pat2_2000x2000.pgm";
+    tinit_fname = "./../../images/plasma_2000x2000.pgm";
 
     // while ((ch = getopt(argc, argv, "c:e:hH:i:k:L:m:M:n:N:p:t:r")) != -1)
     // {

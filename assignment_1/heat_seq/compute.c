@@ -5,6 +5,7 @@
 #include "compute.h"
 #include "../../demo/output.h"
 
+// TODO: instead of removing this function from the code, make it an inline function.
 int get_array_index(const struct parameters* p, int row, int col) {
     return p->M * row + col;
 }
@@ -41,11 +42,11 @@ void calculate_stats(const struct parameters* p, struct results *r, double *t_su
 
 void do_compute(const struct parameters* p, struct results *r)
 {
-    const int M = (int)p->M;
-    const int N = (int)p->N;
+    const unsigned int M = (int)p->M;
+    const unsigned int N = (int)p->N;
 
-    double *t_surface = calloc(p->N * p->M + p->N*2, sizeof(double));
-    double *temp = calloc(p->N * p->M + p->N*2, sizeof(double));
+    double *t_surface = calloc(N * M + N*2, sizeof(double));
+    double *temp = calloc(N * M + N*2, sizeof(double));
     double *tmp_ptr;
 
     t_surface = t_surface + M; // move pointer to actual beginning of matrix
@@ -54,8 +55,8 @@ void do_compute(const struct parameters* p, struct results *r)
     int row, col;
 
     // copy values from p->tinit
-    for(row = 0; row < p->N; row++) {
-        for(col = 0; col < p->M; col++) {
+    for(row = 0; row < N; row++) {
+        for(col = 0; col < M; col++) {
             int index = get_array_index(p, row, col);
             t_surface[index] = p->tinit[index];
         }
@@ -102,7 +103,7 @@ void do_compute(const struct parameters* p, struct results *r)
             for(col = 0; col < M; col++) {
                 col_left = col == 1 ? M : col-1 ;
                 col_right = col == M ? 1 : col+1;
-                index = get_array_index(p, row, col);
+                index = row*M + col; 
                 cond_weight = p->conductivity[index];
                 cond_weight_remain = 1 - cond_weight;
 
@@ -110,16 +111,16 @@ void do_compute(const struct parameters* p, struct results *r)
                 // calculate temperature at given point
                 temp[index] = cond_weight * t_surface[index]
                     + cond_weight_remain * direct_neighbour_weight * (
-                        t_surface[get_array_index(p, row_up,col)] + 
-                        t_surface[get_array_index(p, row_down,col)] + 
-                        t_surface[get_array_index(p, row,col_left)] + 
-                        t_surface[get_array_index(p, row,col_right)]
+                        t_surface[row_up*M + col] + 
+                        t_surface[row_down*M + col] + 
+                        t_surface[row*M + col_left] + 
+                        t_surface[row*M + col_right]
                     ) // direct neighbours
                     + cond_weight_remain * diagonal_neighbour_weight * (
-                        t_surface[get_array_index(p, row_up,col_left)] + 
-                        t_surface[get_array_index(p, row_up,col_right)] + 
-                        t_surface[get_array_index(p, row_down,col_left)] + 
-                        t_surface[get_array_index(p, row_down,col_right)]
+                        t_surface[row_up*M + col_left] + 
+                        t_surface[row_up*M + col_right] + 
+                        t_surface[row_down*M + col_left] + 
+                        t_surface[row_down*M + col_right]
                     ); // diagonal neighbours
 
                 // calculate absolute diff between new and old value
