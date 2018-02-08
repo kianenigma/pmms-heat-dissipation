@@ -1,6 +1,10 @@
 # Prerequisites
 *.d
 
+# Clion shit 
+.idea
+cmake-build-Debug
+
 # Object files
 *.o
 *.ko
