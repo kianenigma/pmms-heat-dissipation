@@ -105,10 +105,10 @@ void do_compute(const struct parameters* p, struct results *r)
                 cond_weight = p->conductivity[index];
                 cond_weight_remain = 1 - cond_weight;
 
-                if(col == 1) {
-                    col_left = M;
-                } else if(col == M) {
-                    col_right = 1;
+                if(col == 0) {
+                    col_left = M-1;
+                } else if(col == M-1) {
+                    col_right = 0;
                 }
 
                 // calculate temperature at given point
