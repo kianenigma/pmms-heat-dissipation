@@ -117,7 +117,7 @@ void do_compute(const struct parameters* p, struct results *r)
                 index = row*M + col;
                 cond_weight = p->conductivity[index];
                 cond_weight_remain = 1 - cond_weight;
-
+                
 
                 // calculate temperature at given point
                 temp[index] = cond_weight * t_surface[index]
