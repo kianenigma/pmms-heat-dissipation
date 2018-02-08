@@ -85,36 +85,42 @@ void do_compute(const struct parameters* p, struct results *r)
     double cond_weight;
     double cond_weight_remain;
     int index;
+    struct timeval  tv1, tv2;
 
     // reset iterations count
     r->niter = 0;
 
-    clock_t start = clock();
+    gettimeofday(&tv1, NULL);
     do {
         // reset max_diff before each iteration
         max_diff = DBL_MIN;
 
-        for(row = 0; row < p->N; row++) {
+        for(row = 0; row < N; row++) {
             row_up = row-1; // can be used because of boundary halo grid points
             row_down = row+1; // can be used because of boundary halo grid points
 
-            for(col = 0; col < p->M; col++) {
+            for(col = 0; col < M; col++) {
+                col_left = col == 1 ? M : col-1 ;
+                col_right = col == M ? 1 : col+1;
                 index = get_array_index(p, row, col);
-                col_left = col-1;
-                col_right = col+1;
                 cond_weight = p->conductivity[index];
                 cond_weight_remain = 1 - cond_weight;
 
-                if(col == 1) {
-                    col_left = M;
-                } else if(col == M) {
-                    col_right = 1;
-                }
 
                 // calculate temperature at given point
                 temp[index] = cond_weight * t_surface[index]
-                    + cond_weight_remain * direct_neighbour_weight * (t_surface[get_array_index(p, row_up,col)] + t_surface[get_array_index(p, row_down,col)] + t_surface[get_array_index(p, row,col_left)] + t_surface[get_array_index(p, row,col_right)]) // direct neighbours
-                    + cond_weight_remain * diagonal_neighbour_weight * (t_surface[get_array_index(p, row_up,col_left)] + t_surface[get_array_index(p, row_up,col_right)] + t_surface[get_array_index(p, row_down,col_left)] + t_surface[get_array_index(p, row_down,col_right)]); // diagonal neighbours
+                    + cond_weight_remain * direct_neighbour_weight * (
+                        t_surface[get_array_index(p, row_up,col)] + 
+                        t_surface[get_array_index(p, row_down,col)] + 
+                        t_surface[get_array_index(p, row,col_left)] + 
+                        t_surface[get_array_index(p, row,col_right)]
+                    ) // direct neighbours
+                    + cond_weight_remain * diagonal_neighbour_weight * (
+                        t_surface[get_array_index(p, row_up,col_left)] + 
+                        t_surface[get_array_index(p, row_up,col_right)] + 
+                        t_surface[get_array_index(p, row_down,col_left)] + 
+                        t_surface[get_array_index(p, row_down,col_right)]
+                    ); // diagonal neighbours
 
                 // calculate absolute diff between new and old value
                 abs_diff = fabs(t_surface[index] - temp[index]);
@@ -130,9 +136,10 @@ void do_compute(const struct parameters* p, struct results *r)
 
         r->niter += 1;
     } while(r->niter < p->maxiter && max_diff >= p->threshold);
-    clock_t end = clock();
+    gettimeofday(&tv2, NULL);
 
     r->maxdiff = max_diff;
-    r->time = ((double)(end - start)) / CLOCKS_PER_SEC; // TODO: check way of measuring elapsed time
+    r->time = (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
+         (double) (tv2.tv_sec - tv1.tv_sec);
     calculate_stats(p, r, t_surface);
 }

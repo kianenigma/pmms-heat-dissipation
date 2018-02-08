@@ -85,26 +85,26 @@ void read_parameters(struct parameters* p, int argc, char **argv)
     p->io_tmax = 100.0;
     p->nthreads = 1;
     p->printreports = 0;
-    conductivity_fname = "pattern_100x150.pgm";
-    tinit_fname = "pattern_100x150.pgm";
+    conductivity_fname = "./../../images/plasma_100x150.pgm";
+    tinit_fname = "./../../images/pat1_100x150.pgm";
 
-    while ((ch = getopt(argc, argv, "c:e:hH:i:k:L:m:M:n:N:p:t:r")) != -1)
-    {
-        switch(ch) {
-        case 'c': conductivity_fname = optarg; break;
-        case 't': tinit_fname = optarg; break;
-        case 'i': p->maxiter = strtol(optarg, 0, 10); break;
-        case 'k': p->period = strtol(optarg, 0, 10); break;
-        case 'm': case 'M': p->M = strtol(optarg, 0, 10); break;
-        case 'n': case 'N': p->N = strtol(optarg, 0, 10); break;
-        case 'e': p->threshold = strtod(optarg, 0); break;
-        case 'L': p->io_tmin = strtod(optarg, 0); break;
-        case 'H': p->io_tmax = strtod(optarg, 0); break;
-        case 'p': p->nthreads = strtol(optarg, 0, 10); break;
-        case 'r': p->printreports = 1; break;
-        case 'h': default: usage(argv[0]);
-        }
-    }
+    // while ((ch = getopt(argc, argv, "c:e:hH:i:k:L:m:M:n:N:p:t:r")) != -1)
+    // {
+    //     switch(ch) {
+    //     case 'c': conductivity_fname = optarg; break;
+    //     case 't': tinit_fname = optarg; break;
+    //     case 'i': p->maxiter = strtol(optarg, 0, 10); break;
+    //     case 'k': p->period = strtol(optarg, 0, 10); break;
+    //     case 'm': case 'M': p->M = strtol(optarg, 0, 10); break;
+    //     case 'n': case 'N': p->N = strtol(optarg, 0, 10); break;
+    //     case 'e': p->threshold = strtod(optarg, 0); break;
+    //     case 'L': p->io_tmin = strtod(optarg, 0); break;
+    //     case 'H': p->io_tmax = strtod(optarg, 0); break;
+    //     case 'p': p->nthreads = strtol(optarg, 0, 10); break;
+    //     case 'r': p->printreports = 1; break;
+    //     case 'h': default: usage(argv[0]);
+    //     }
+    // }
 
     printf("Parameters:\n"
            "  -n %zu # number of rows\n"
@@ -128,15 +128,17 @@ void read_parameters(struct parameters* p, int argc, char **argv)
 
     atexit(cleanup);
 
-    if (!(tinit = calloc(p->N * p->M, sizeof(double)))) die("calloc");
-    if (tinit_fname) 
-        readpgm_float(tinit_fname, p->N, p->M, tinit, p->io_tmin, p->io_tmax);
-    p->tinit = tinit;
+    
 
     if (!(conductivity = calloc(p->N * p->M, sizeof(double)))) die("calloc");
     if (conductivity_fname) 
         readpgm_float(conductivity_fname, p->N, p->M, conductivity, 0.0, 1.0);
     p->conductivity = conductivity;
+
+    if (!(tinit = calloc(p->N * p->M, sizeof(double)))) die("calloc");
+    if (tinit_fname) 
+        readpgm_float(tinit_fname, p->N, p->M, tinit, p->io_tmin, p->io_tmax);
+    p->tinit = tinit;
 }
 
 
