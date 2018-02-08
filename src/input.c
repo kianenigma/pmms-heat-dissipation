@@ -88,23 +88,23 @@ void read_parameters(struct parameters* p, int argc, char **argv)
     conductivity_fname = "./../../images/pat2_2000x2000.pgm";
     tinit_fname = "./../../images/plasma_2000x2000.pgm";
 
-    // while ((ch = getopt(argc, argv, "c:e:hH:i:k:L:m:M:n:N:p:t:r")) != -1)
-    // {
-    //     switch(ch) {
-    //     case 'c': conductivity_fname = optarg; break;
-    //     case 't': tinit_fname = optarg; break;
-    //     case 'i': p->maxiter = strtol(optarg, 0, 10); break;
-    //     case 'k': p->period = strtol(optarg, 0, 10); break;
-    //     case 'm': case 'M': p->M = strtol(optarg, 0, 10); break;
-    //     case 'n': case 'N': p->N = strtol(optarg, 0, 10); break;
-    //     case 'e': p->threshold = strtod(optarg, 0); break;
-    //     case 'L': p->io_tmin = strtod(optarg, 0); break;
-    //     case 'H': p->io_tmax = strtod(optarg, 0); break;
-    //     case 'p': p->nthreads = strtol(optarg, 0, 10); break;
-    //     case 'r': p->printreports = 1; break;
-    //     case 'h': default: usage(argv[0]);
-    //     }
-    // }
+    while ((ch = getopt(argc, argv, "c:e:hH:i:k:L:m:M:n:N:p:t:r")) != -1)
+    {
+        switch(ch) {
+        case 'c': conductivity_fname = optarg; break;
+        case 't': tinit_fname = optarg; break;
+        case 'i': p->maxiter = strtol(optarg, 0, 10); break;
+        case 'k': p->period = strtol(optarg, 0, 10); break;
+        case 'm': case 'M': p->M = strtol(optarg, 0, 10); break;
+        case 'n': case 'N': p->N = strtol(optarg, 0, 10); break;
+        case 'e': p->threshold = strtod(optarg, 0); break;
+        case 'L': p->io_tmin = strtod(optarg, 0); break;
+        case 'H': p->io_tmax = strtod(optarg, 0); break;
+        case 'p': p->nthreads = strtol(optarg, 0, 10); break;
+        case 'r': p->printreports = 1; break;
+        case 'h': default: usage(argv[0]);
+        }
+    }
 
     printf("Parameters:\n"
            "  -n %zu # number of rows\n"
