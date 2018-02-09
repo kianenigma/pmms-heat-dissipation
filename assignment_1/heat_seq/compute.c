@@ -112,8 +112,8 @@ void do_compute(const struct parameters* p, struct results *r)
             row_up_start_idx = row_up*M;
 
             for(col = 0; col < M; col++) {
-                col_left = col == 1 ? M : col-1 ;
-                col_right = col == M-1 ? 1 : col+1;
+                col_left = col == 0 ? M-1 : col-1 ;
+                col_right = col == M-1 ? 0 : col+1;
                 index = row*M + col;
                 cond_weight = p->conductivity[index];
                 cond_weight_remain = 1 - cond_weight;
