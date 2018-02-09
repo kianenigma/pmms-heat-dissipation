@@ -49,6 +49,8 @@ void do_compute(const struct parameters* p, struct results *r)
 {
     const unsigned int M = (int)p->M;
     const unsigned int N = (int)p->N;
+    const unsigned int maxiter = (int)p->maxiter;
+    const double threshold = p->threshold;
 
     double *t_surface = calloc(N * M + N*2, sizeof(double));
     double *temp = calloc(N * M + N*2, sizeof(double));
@@ -86,18 +88,16 @@ void do_compute(const struct parameters* p, struct results *r)
     double abs_diff;
     int col_left;
     int col_right;
-    int row_up;                         // will point to prev row
-    int row_down;                       // will point to next row
-    int row_down_start_idx;
-    int row_up_start_idx;
+    int row_down_start_idx;             // will point to next row
+    int row_up_start_idx;               // will point to prev row
     int this_row_start_idx;             // will be used as alias of row*M to prevent computation
     double cond_weight;
     double cond_weight_remain;
     int index;
-    struct timeval  tv1, tv2;
-
-    // reset iterations count
-    r->niter = 0;
+    struct timeval tv1, tv2;
+    double temp_index;
+    double t_surface_index;
+    unsigned int niter = 0;             // count iterations
 
     gettimeofday(&tv1, NULL);
     do {
@@ -105,22 +105,21 @@ void do_compute(const struct parameters* p, struct results *r)
         max_diff = DBL_MIN;
 
         for(row = 0; row < N; row++) {
-            row_up = row-1; // can be used because of boundary halo grid points
-            row_down = row+1; // can be used because of boundary halo grid points
             this_row_start_idx = row*M;
-            row_down_start_idx = row_down*M;
-            row_up_start_idx = row_up*M;
+            row_down_start_idx = this_row_start_idx+M; // can be used because of boundary halo grid points
+            row_up_start_idx = this_row_start_idx-M; // can be used because of boundary halo grid points
 
+            // TODO: unroll loop for col == 0, col == M-1 -> prevent additional computation within loop
             for(col = 0; col < M; col++) {
                 col_left = col == 0 ? M-1 : col-1 ;
                 col_right = col == M-1 ? 0 : col+1;
-                index = row*M + col;
+                index = this_row_start_idx + col;
                 cond_weight = p->conductivity[index];
                 cond_weight_remain = 1 - cond_weight;
-                
+                t_surface_index = t_surface[index]; // get only once from memory
 
                 // calculate temperature at given point
-                temp[index] = cond_weight * t_surface[index]
+                temp_index = cond_weight * t_surface_index
                     + cond_weight_remain * direct_neighbour_weight * (
                         t_surface[row_up_start_idx + col] +
                         t_surface[row_down_start_idx + col] +
@@ -136,10 +135,12 @@ void do_compute(const struct parameters* p, struct results *r)
 
 
                 // calculate absolute diff between new and old value
-                abs_diff = fabs(t_surface[index] - temp[index]);
+                abs_diff = fabs(t_surface_index - temp_index);
                 if(abs_diff > max_diff) {
                     max_diff = abs_diff;
                 }
+
+                temp[index] = temp_index;
             }
         }
 
@@ -147,10 +148,11 @@ void do_compute(const struct parameters* p, struct results *r)
         temp = t_surface;
         t_surface = tmp_ptr;
 
-        r->niter += 1;
-    } while(r->niter < p->maxiter && max_diff >= p->threshold);
+        niter += 1;
+    } while(niter < maxiter && max_diff >= threshold);
     gettimeofday(&tv2, NULL);
 
+    r->niter = niter;
     r->maxdiff = max_diff;
     r->time = (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
          (double) (tv2.tv_sec - tv1.tv_sec);
