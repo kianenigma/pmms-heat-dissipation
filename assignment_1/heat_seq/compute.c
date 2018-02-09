@@ -98,21 +98,21 @@ void do_compute(const struct parameters* p, struct results *r)
     double temp_index;
     double t_surface_index;
     unsigned int niter = 0;             // count iterations
+    const unsigned int upper_bound = M-1;
 
     gettimeofday(&tv1, NULL);
     do {
-        // reset max_diff before each iteration
-        max_diff = DBL_MIN;
+        max_diff = DBL_MIN;             // reset max_diff before each iteration
+        this_row_start_idx = -M;        // reset start index
 
         for(row = 0; row < N; row++) {
-            this_row_start_idx = row*M;
+            this_row_start_idx += M;
             row_down_start_idx = this_row_start_idx+M; // can be used because of boundary halo grid points
             row_up_start_idx = this_row_start_idx-M; // can be used because of boundary halo grid points
 
-            // TODO: unroll loop for col == 0, col == M-1 -> prevent additional computation within loop
-            for(col = 0; col < M; col++) {
-                col_left = col == 0 ? M-1 : col-1 ;
-                col_right = col == M-1 ? 0 : col+1;
+            for(col = 1; col < upper_bound; col++) {
+                col_left = col-1; // col == 0 ? M-1 : col-1 ;
+                col_right = col+1; // col == M-1 ? 0 : col+1;
                 index = this_row_start_idx + col;
                 cond_weight = p->conductivity[index];
                 cond_weight_remain = 1 - cond_weight;
@@ -142,6 +142,73 @@ void do_compute(const struct parameters* p, struct results *r)
 
                 temp[index] = temp_index;
             }
+
+            //
+            // do computation for col=0
+            //
+            col_left = M-1; //= col == 0 ? M-1 : col-1 ;
+            col_right = 1; //col == M-1 ? 0 : col+1;
+            index = this_row_start_idx;
+            cond_weight = p->conductivity[index];
+            cond_weight_remain = 1 - cond_weight;
+            t_surface_index = t_surface[index]; // get only once from memory
+
+            // calculate temperature at given point
+            temp_index = cond_weight * t_surface_index
+                         + cond_weight_remain * direct_neighbour_weight * (
+                    t_surface[row_up_start_idx] +
+                    t_surface[row_down_start_idx] +
+                    t_surface[this_row_start_idx + col_left] +
+                    t_surface[this_row_start_idx + col_right]
+            ) // direct neighbours
+                         + cond_weight_remain * diagonal_neighbour_weight * (
+                    t_surface[row_up_start_idx + col_left] +
+                    t_surface[row_up_start_idx + col_right] +
+                    t_surface[row_down_start_idx + col_left] +
+                    t_surface[row_down_start_idx + col_right]
+            ); // diagonal neighbours
+
+
+            // calculate absolute diff between new and old value
+            abs_diff = fabs(t_surface_index - temp_index);
+            if(abs_diff > max_diff) {
+                max_diff = abs_diff;
+            }
+            temp[index] = temp_index;
+
+
+            //
+            // do computation for col=M-1
+            //
+            col = M-1;
+            col_left = col-1; //= col == 0 ? M-1 : col-1 ;
+            index = this_row_start_idx + col;
+            cond_weight = p->conductivity[index];
+            cond_weight_remain = 1 - cond_weight;
+            t_surface_index = t_surface[index]; // get only once from memory
+
+            // calculate temperature at given point
+            temp_index = cond_weight * t_surface_index
+                         + cond_weight_remain * direct_neighbour_weight * (
+                    t_surface[row_up_start_idx + col] +
+                    t_surface[row_down_start_idx + col] +
+                    t_surface[this_row_start_idx + col_left] +
+                    t_surface[this_row_start_idx]
+            ) // direct neighbours
+                         + cond_weight_remain * diagonal_neighbour_weight * (
+                    t_surface[row_up_start_idx + col_left] +
+                    t_surface[row_up_start_idx] +
+                    t_surface[row_down_start_idx + col_left] +
+                    t_surface[row_down_start_idx]
+            ); // diagonal neighbours
+
+
+            // calculate absolute diff between new and old value
+            abs_diff = fabs(t_surface_index - temp_index);
+            if(abs_diff > max_diff) {
+                max_diff = abs_diff;
+            }
+            temp[index] = temp_index;
         }
 
         tmp_ptr = temp;
