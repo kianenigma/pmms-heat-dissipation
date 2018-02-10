@@ -7,9 +7,7 @@
 
 
 // TODO: use unsigned int wherever possible
-// TODO: replace if else assignment with switch
-// TODO: remove function calls in the loop
-// TODO: instead of removing this function from the code, make it an inline function.
+// TODO: check avriable naming. _idx, _index postfixes are not used in the same way
 
 int get_array_index(const struct parameters* p, int row, int col) {
     return p->M * row + col;
