@@ -123,11 +123,11 @@ void do_compute(const struct parameters* p, struct results *r)
                 // direct neighbour calculation
                 double* intermediate_res_direct = calloc(2, sizeof(double));
 
-                __m128d vector_reg_1 = _mm_loaddup_pd(&t_surface[row_up_start_idx + col]);
-                vector_reg_1 = _mm_loadh_pd(vector_reg_1, &t_surface[row_down_start_idx + col]);
+                __m128d vector_reg_1 = _mm_loaddup_pd(t_surface+row_up_start_idx+col);
+                vector_reg_1 = _mm_loadh_pd(vector_reg_1, t_surface+row_down_start_idx+col);
 
-                __m128d vector_reg_2 = _mm_loaddup_pd(&t_surface[this_row_start_idx + col_left]);
-                vector_reg_2 = _mm_loadh_pd(vector_reg_2, &t_surface[this_row_start_idx + col_right]);
+                __m128d vector_reg_2 = _mm_loaddup_pd(t_surface+this_row_start_idx+col_left);
+                vector_reg_2 = _mm_loadh_pd(vector_reg_2, t_surface+this_row_start_idx+col_right);
 
                 __m128d vector_reg_res = _mm_add_pd(vector_reg_1, vector_reg_2);
                 _mm_store_pd(intermediate_res_direct, vector_reg_res);
@@ -135,11 +135,11 @@ void do_compute(const struct parameters* p, struct results *r)
                 // diagonal neighbour calculation
                 double* intermediate_res_diagonal = calloc(2, sizeof(double));
 
-                vector_reg_1 = _mm_loaddup_pd(&t_surface[row_up_start_idx + col_left]);
-                vector_reg_1 = _mm_loadh_pd(vector_reg_1, &t_surface[row_up_start_idx + col_right]);
+                vector_reg_1 = _mm_loaddup_pd(t_surface+row_up_start_idx+col_left);
+                vector_reg_1 = _mm_loadh_pd(vector_reg_1, t_surface+row_up_start_idx+col_right);
 
-                vector_reg_2 = _mm_loaddup_pd(&t_surface[row_down_start_idx + col_left]);
-                vector_reg_2 = _mm_loadh_pd(vector_reg_2, &t_surface[row_down_start_idx + col_right]);
+                vector_reg_2 = _mm_loaddup_pd(t_surface+row_down_start_idx+col_left);
+                vector_reg_2 = _mm_loadh_pd(vector_reg_2, t_surface+row_down_start_idx+col_right);
 
                 vector_reg_res = _mm_add_pd(vector_reg_1, vector_reg_2);
                 _mm_store_pd(intermediate_res_diagonal, vector_reg_res);
