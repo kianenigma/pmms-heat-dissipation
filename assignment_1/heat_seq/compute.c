@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <float.h>
+#include <string.h>
 #include "compute.h"
 #include "../../demo/output.h"
 
@@ -99,6 +100,9 @@ void do_compute(const struct parameters* p, struct results *r)
     double t_surface_index;
     unsigned int niter = 0;             // count iterations
     const unsigned int upper_bound = M-1;
+    double this_row[M];
+    double row_up[M];
+    double row_down[M];
 
     gettimeofday(&tv1, NULL);
     do {
@@ -110,27 +114,31 @@ void do_compute(const struct parameters* p, struct results *r)
             row_down_start_idx = this_row_start_idx+M; // can be used because of boundary halo grid points
             row_up_start_idx = this_row_start_idx-M; // can be used because of boundary halo grid points
 
+            memcpy(this_row, t_surface+this_row_start_idx, sizeof(double)*M);
+            memcpy(row_up, t_surface+row_up_start_idx, sizeof(double)*M);
+            memcpy(row_down, t_surface+row_down_start_idx, sizeof(double)*M);
+
             for(col = 1; col < upper_bound; col++) {
                 col_left = col-1; // col == 0 ? M-1 : col-1 ;
                 col_right = col+1; // col == M-1 ? 0 : col+1;
                 index = this_row_start_idx + col;
                 cond_weight = p->conductivity[index];
                 cond_weight_remain = 1 - cond_weight;
-                t_surface_index = t_surface[index]; // get only once from memory
+                t_surface_index = this_row[col]; // get only once from memory
 
                 // calculate temperature at given point
                 temp_index = cond_weight * t_surface_index
                     + cond_weight_remain * direct_neighbour_weight * (
-                        t_surface[row_up_start_idx + col] +
-                        t_surface[row_down_start_idx + col] +
-                        t_surface[this_row_start_idx + col_left] +
-                        t_surface[this_row_start_idx + col_right]
+                        row_up[col] +
+                        row_down[col] +
+                        this_row[col_left] +
+                        this_row[col_right]
                     ) // direct neighbours
                     + cond_weight_remain * diagonal_neighbour_weight * (
-                        t_surface[row_up_start_idx + col_left] +
-                        t_surface[row_up_start_idx + col_right] +
-                        t_surface[row_down_start_idx + col_left] +
-                        t_surface[row_down_start_idx + col_right]
+                        row_up[col_left] +
+                        row_up[col_right] +
+                        row_down[col_left] +
+                        row_down[col_right]
                     ); // diagonal neighbours
 
 
