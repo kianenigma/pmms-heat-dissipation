@@ -4,6 +4,7 @@
 #include <float.h>
 #include <printf.h>
 #include "pmmintrin.h"
+#include <x86intrin.h>
 #include "emmintrin.h"
 
 #include "../../demo/output.h"
