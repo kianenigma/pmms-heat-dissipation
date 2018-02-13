@@ -3,13 +3,8 @@
 #include <stdlib.h>
 #include <float.h>
 #include "compute.h"
-#include "../../demo/output.h"
+#include "output.h"
 
-
-// TODO: use unsigned int wherever possible
-// TODO: replace if else assignment with switch
-// TODO: remove function calls in the loop
-// TODO: instead of removing this function from the code, make it an inline function.
 
 int get_array_index(const struct parameters* p, int row, int col) {
     return p->M * row + col;
@@ -216,9 +211,23 @@ void do_compute(const struct parameters* p, struct results *r)
         t_surface = tmp_ptr;
 
         niter += 1;
-    } while(niter < maxiter && max_diff >= threshold);
-    gettimeofday(&tv2, NULL);
 
+        // report results
+        if (p->printreports == 1) {
+            if (niter % p->period == 0 && niter < p->maxiter) {
+                gettimeofday(&tv2, NULL);
+                r->niter = niter;
+                r->maxdiff = max_diff;
+                r->time = (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
+                          (double) (tv2.tv_sec - tv1.tv_sec);
+                calculate_stats(p, r, t_surface);
+                report_results(p, r);
+            }
+        }
+
+    } while(niter < maxiter && max_diff >= threshold);
+
+    gettimeofday(&tv2, NULL);
     r->niter = niter;
     r->maxdiff = max_diff;
     r->time = (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +

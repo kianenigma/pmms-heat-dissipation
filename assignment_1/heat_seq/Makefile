@@ -3,7 +3,7 @@ PRJ=$(CURR_DIR)
 SRC=$(wildcard *.c)
 OBJ=$(patsubst %.c,%.o,$(SRC))
 
-CC=gcc-5
+CC=gcc
 
 INCLUDES=-I../../include
 ifndef DEBUG

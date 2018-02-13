@@ -79,7 +79,7 @@ void read_parameters(struct parameters* p, int argc, char **argv)
     p->N = 2000;
     p->M = 2000;
     p->maxiter = 100;
-    p->period = 1000;
+    p->period = 20;
     p->threshold = 0.1;
     p->io_tmin = -100.0;
     p->io_tmax = 100.0;

@@ -289,6 +289,20 @@ void do_compute(const struct parameters* p, struct results *r)
         t_surface = tmp_ptr;
 
         niter += 1;
+
+        // report results
+        if (p->printreports == 1) {
+            if (niter % p->period == 0 && niter < p->maxiter) {
+                gettimeofday(&tv2, NULL);
+                r->niter = niter;
+                r->maxdiff = max_diff;
+                r->time = (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
+                          (double) (tv2.tv_sec - tv1.tv_sec);
+                calculate_stats(p, r, t_surface);
+                report_results(p, r);
+            }
+        }
+
     } while(niter < maxiter && max_diff >= threshold);
     gettimeofday(&tv2, NULL);
 
