@@ -7,41 +7,10 @@
 #include <x86intrin.h>
 #include "emmintrin.h"
 
-#include "../../demo/output.h"
+#include "compute.h"
+#include "output.h"
+#include "helpers.h"
 
-int get_array_index(const struct parameters* p, int row, int col) {
-    return p->M * row + col;
-}
-
-void calculate_stats(const struct parameters* p, struct results *r, double *t_surface) {
-    double max = DBL_MIN;
-    double min = DBL_MAX;
-    double avg = 0;
-    int row;
-    int col;
-    int index;
-
-    for(row = 0; row < p->N; row++) {
-        for(col = 0; col < p->M; col++) {
-            index = get_array_index(p, row, col);
-
-            avg += t_surface[index];
-
-            if(t_surface[index] > max) {
-                max = t_surface[index];
-                continue;
-            }
-            if(t_surface[index] < min) {
-                min = t_surface[index];
-                continue;
-            }
-        }
-    }
-
-    r->tavg = avg / (p->N * p->M);
-    r->tmax = max;
-    r->tmin = min;
-}
 
 void do_compute(const struct parameters* p, struct results *r)
 {
@@ -106,6 +75,7 @@ void do_compute(const struct parameters* p, struct results *r)
     double diffs[2];
     double conductivities[2];
 
+    // initialize SSE variables to enable vectorization
     __m128d vec_res;
     __m128d vec_tmp;
     __m128d vec_current_index_val;
@@ -143,10 +113,9 @@ void do_compute(const struct parameters* p, struct results *r)
                 // calculate first value
                 //
                 current_col = col;
-                col_left = current_col-1; // col == 0 ? M-1 : col-1 ;
-                col_right = current_col+1; // col == M-1 ? 0 : col+1;
+                col_left = current_col-1;
+                col_right = current_col+1;
                 cond_weight_remain = conductivities[0];
-
 
                 direct_neighbours_val = cond_weight_remain * direct_neighbour_weight * (
                         t_surface[row_up_start_idx + current_col] +
@@ -171,8 +140,8 @@ void do_compute(const struct parameters* p, struct results *r)
                 // calculate second value
                 //
                 current_col = col+1;
-                col_left = current_col-1; // col == 0 ? M-1 : col-1 ;
-                col_right = current_col+1; // col == M-1 ? 0 : col+1;
+                col_left = current_col-1;
+                col_right = current_col+1;
                 cond_weight_remain = conductivities[1];
 
                 direct_neighbours_val = cond_weight_remain * direct_neighbour_weight * (
@@ -204,6 +173,7 @@ void do_compute(const struct parameters* p, struct results *r)
                 vec_res = _mm_sub_pd(vec_current_t_surface_val, vec_res);
                 // get absolute values
                 vec_res = _mm_andnot_pd(abs_bitmask, vec_res);
+                // store in diffs
                 _mm_store_pd(diffs, vec_res);
 
                 abs_diff = diffs[0];
@@ -219,8 +189,8 @@ void do_compute(const struct parameters* p, struct results *r)
             //
             // do computation for col=0
             //
-            col_left = M-1; //= col == 0 ? M-1 : col-1 ;
-            col_right = 1; //col == M-1 ? 0 : col+1;
+            col_left = M-1;
+            col_right = 1;
             index = this_row_start_idx;
             cond_weight = p->conductivity[index];
             cond_weight_remain = 1 - cond_weight;
@@ -254,7 +224,7 @@ void do_compute(const struct parameters* p, struct results *r)
             // do computation for col=M-1
             //
             col = M-1;
-            col_left = col-1; //= col == 0 ? M-1 : col-1 ;
+            col_left = col-1;
             index = this_row_start_idx + col;
             cond_weight = p->conductivity[index];
             cond_weight_remain = 1 - cond_weight;
@@ -304,8 +274,9 @@ void do_compute(const struct parameters* p, struct results *r)
         }
 
     } while(niter < maxiter && max_diff >= threshold);
-    gettimeofday(&tv2, NULL);
 
+    // prepare final results
+    gettimeofday(&tv2, NULL);
     r->niter = niter;
     r->maxdiff = max_diff;
     r->time = (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
