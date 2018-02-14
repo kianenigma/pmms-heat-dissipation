@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <float.h>
+#include <printf.h>
 #include "compute.h"
 #include "output.h"
 
@@ -39,6 +40,11 @@ void calculate_stats(const struct parameters* p, struct results *r, double *t_su
     r->tmax = max;
     r->tmin = min;
 }
+
+union Abs {
+    double d;
+    int64_t i;
+};
 
 void do_compute(const struct parameters* p, struct results *r)
 {
@@ -80,7 +86,7 @@ void do_compute(const struct parameters* p, struct results *r)
 
     // initialize variables for reuse in iterations
     double max_diff;
-    double abs_diff;
+    union Abs abs_diff;
     int col_left;
     int col_right;
     int row_down_start_idx;             // will point to next row
@@ -94,6 +100,7 @@ void do_compute(const struct parameters* p, struct results *r)
     double t_surface_index;
     unsigned int niter = 0;             // count iterations
     const unsigned int upper_bound = M-1;
+    const int64_t abs_bitmask = ~0x8000000000000000; // set sign bit according to IEEE 754
 
     gettimeofday(&tv1, NULL);
     do {
@@ -130,9 +137,10 @@ void do_compute(const struct parameters* p, struct results *r)
 
 
                 // calculate absolute diff between new and old value
-                abs_diff = fabs(t_surface_index - temp_index);
-                if(abs_diff > max_diff) {
-                    max_diff = abs_diff;
+                abs_diff.d = t_surface_index - temp_index;
+                abs_diff.i = abs_bitmask & abs_diff.i;
+                if(abs_diff.d > max_diff) {
+                    max_diff = abs_diff.d;
                 }
 
                 temp[index] = temp_index;
@@ -165,9 +173,10 @@ void do_compute(const struct parameters* p, struct results *r)
 
 
             // calculate absolute diff between new and old value
-            abs_diff = fabs(t_surface_index - temp_index);
-            if(abs_diff > max_diff) {
-                max_diff = abs_diff;
+            abs_diff.d = t_surface_index - temp_index;
+            abs_diff.i = abs_bitmask & abs_diff.i;
+            if(abs_diff.d > max_diff) {
+                max_diff = abs_diff.d;
             }
             temp[index] = temp_index;
 
@@ -199,9 +208,10 @@ void do_compute(const struct parameters* p, struct results *r)
 
 
             // calculate absolute diff between new and old value
-            abs_diff = fabs(t_surface_index - temp_index);
-            if(abs_diff > max_diff) {
-                max_diff = abs_diff;
+            abs_diff.d = t_surface_index - temp_index;
+            abs_diff.i = abs_bitmask & abs_diff.i;
+            if(abs_diff.d > max_diff) {
+                max_diff = abs_diff.d;
             }
             temp[index] = temp_index;
         }
