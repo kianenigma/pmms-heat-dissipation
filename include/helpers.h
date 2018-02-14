@@ -1,0 +1,8 @@
+//
+// Created by Jonas Theis on 14/2/18.
+//
+
+#ifndef PMMS_HEAT_DISSIPATION_HELPERS_H
+#define PMMS_HEAT_DISSIPATION_HELPERS_H
+
+#endif //PMMS_HEAT_DISSIPATION_HELPERS_H
