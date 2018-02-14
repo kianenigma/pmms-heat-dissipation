@@ -7,7 +7,7 @@
 #include "output.h"
 #include "helpers.h"
 
-
+// save absolute value as union to get absolute value with bit operation
 union Abs {
     double d;
     int64_t i;
@@ -80,8 +80,8 @@ void do_compute(const struct parameters* p, struct results *r)
             row_up_start_idx = this_row_start_idx-M; // can be used because of boundary halo grid points
 
             for(col = 1; col < upper_bound; col++) {
-                col_left = col-1; // col == 0 ? M-1 : col-1 ;
-                col_right = col+1; // col == M-1 ? 0 : col+1;
+                col_left = col-1;
+                col_right = col+1;
                 index = this_row_start_idx + col;
                 cond_weight = p->conductivity[index];
                 cond_weight_remain = 1 - cond_weight;
@@ -116,8 +116,8 @@ void do_compute(const struct parameters* p, struct results *r)
             //
             // do computation for col=0
             //
-            col_left = M-1; //= col == 0 ? M-1 : col-1 ;
-            col_right = 1; //col == M-1 ? 0 : col+1;
+            col_left = M-1;
+            col_right = 1;
             index = this_row_start_idx;
             cond_weight = p->conductivity[index];
             cond_weight_remain = 1 - cond_weight;
@@ -152,7 +152,7 @@ void do_compute(const struct parameters* p, struct results *r)
             // do computation for col=M-1
             //
             col = M-1;
-            col_left = col-1; //= col == 0 ? M-1 : col-1 ;
+            col_left = col-1;
             index = this_row_start_idx + col;
             cond_weight = p->conductivity[index];
             cond_weight_remain = 1 - cond_weight;
@@ -204,6 +204,7 @@ void do_compute(const struct parameters* p, struct results *r)
 
     } while(niter < maxiter && max_diff >= threshold);
 
+    // prepare final results
     gettimeofday(&tv2, NULL);
     r->niter = niter;
     r->maxdiff = max_diff;
