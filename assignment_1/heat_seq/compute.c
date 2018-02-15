@@ -10,7 +10,7 @@
 // save absolute value as union to get absolute value with bit operation
 union Abs {
     double d;
-    int64_t i;
+    long i;
 };
 
 void do_compute(const struct parameters* p, struct results *r)
@@ -67,7 +67,7 @@ void do_compute(const struct parameters* p, struct results *r)
     double t_surface_index;
     unsigned int niter = 0;             // count iterations
     const unsigned int upper_bound = M-1;
-    const int64_t abs_bitmask = ~0x8000000000000000; // set sign bit according to IEEE 754
+    const long abs_bitmask = ~0x8000000000000000; // set sign bit according to IEEE 754
 
     gettimeofday(&tv1, NULL);
     do {
