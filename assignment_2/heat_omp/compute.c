@@ -83,6 +83,7 @@ void do_compute(const struct parameters* p, struct results *r)
         #pragma omp parallel for \
         private(this_row_start_idx, row_down_start_idx, row_up_start_idx, col_left, col_right, \
                 this_cell_index, cond_weight, cond_weight_remain, t_surface_value) \
+        num_threads(p->nthreads)\
         reduction(max: max_diff)
         for(row = 0; row < N; row++) {
             this_row_start_idx = row*M;
