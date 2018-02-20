@@ -9,6 +9,8 @@
 #include "output.h"
 #include "helpers.h"
 
+#define THREADS 4
+
 // save absolute value as union to get absolute value with bit operation
 union Abs {
     double d;
@@ -24,12 +26,10 @@ void do_compute(const struct parameters* p, struct results *r)
 
     double *t_surface =   calloc(N * M + N*2, sizeof(double));
     double *temp =        calloc(N * M + N*2, sizeof(double));
-    double *c_surface =   calloc(N * M + N, sizeof(double));
     double *tmp_ptr;
 
     t_surface = t_surface + M; // move pointer to actual beginning of matrix
     temp = temp + M; // move pointer to actual beginning of matrix
-    c_surface = p->conductivity;
 
     int row, col;
 
@@ -40,6 +40,7 @@ void do_compute(const struct parameters* p, struct results *r)
             t_surface[index] = p->tinit[index];
         }
     }
+
 
     // initialize boundary halo grid point that remain fixed over the iterations
     for(col = 0; col < M; col++) {
@@ -73,6 +74,7 @@ void do_compute(const struct parameters* p, struct results *r)
     const long abs_bitmask = ~0x8000000000000000; // set sign bit according to IEEE 754
 
     printf("Maximum number of threads %d\n", omp_get_max_threads());
+    
     gettimeofday(&tv1, NULL);
 
     do {
@@ -81,11 +83,8 @@ void do_compute(const struct parameters* p, struct results *r)
         #pragma omp parallel for \
         private(this_row_start_idx, row_down_start_idx, row_up_start_idx, col_left, col_right, \
                 this_cell_index, cond_weight, cond_weight_remain, t_surface_value) \
-        firstprivate(c_surface)\
-        reduction(max: max_diff)\
-        schedule(static)
+        reduction(max: max_diff)
         for(row = 0; row < N; row++) {
-
             this_row_start_idx = row*M;
             row_down_start_idx = this_row_start_idx+M; // can be used because of boundary halo grid points
             row_up_start_idx = this_row_start_idx-M; // can be used because of boundary halo grid points
@@ -94,7 +93,7 @@ void do_compute(const struct parameters* p, struct results *r)
                 col_left = col-1;
                 col_right = col+1;
                 this_cell_index = this_row_start_idx + col;
-                cond_weight = c_surface[this_cell_index];
+                cond_weight = p->conductivity[this_cell_index];
                 cond_weight_remain = 1 - cond_weight;
                 t_surface_value = t_surface[this_cell_index]; // get only once from memory
 
@@ -130,7 +129,7 @@ void do_compute(const struct parameters* p, struct results *r)
             col_left = M-1;
             col_right = 1;
             // this_cell_index = this_row_start_idx + 0;
-            cond_weight = c_surface[this_row_start_idx];
+            cond_weight = p->conductivity[this_row_start_idx];
             cond_weight_remain = 1 - cond_weight;
             t_surface_value = t_surface[this_row_start_idx]; // get only once from memory
 
@@ -164,7 +163,7 @@ void do_compute(const struct parameters* p, struct results *r)
             col = M-1;
             col_left = col-1;
             this_cell_index = this_row_start_idx + col;
-            cond_weight = c_surface[this_cell_index];
+            cond_weight = p->conductivity[this_cell_index];
             cond_weight_remain = 1 - cond_weight;
             t_surface_value = t_surface[this_cell_index]; // get only once from memory
 
@@ -192,6 +191,11 @@ void do_compute(const struct parameters* p, struct results *r)
             }
             temp[this_cell_index] = temp_index;
         }
+
+
+//        time_t current_time;
+//        current_time = time(NULL);
+//        printf("thread %d | Current time is %d\n",omp_get_thread_num(), current_time);
 
         tmp_ptr = temp;
         temp = t_surface;
