@@ -3,13 +3,13 @@ PRJ=$(CURR_DIR)
 SRC=$(wildcard *.c)
 OBJ=$(patsubst %.c,%.o,$(SRC))
 
-CC=gcc
+CC=gcc-7
 INCLUDES=-I../../include
 ifndef DEBUG
-CFLAGS=-O2 -std=c99
+CFLAGS=-O0 -fopenmp -std=c99 -g
 LIB=
 else
-CFLAGS=-O0 -g3 -std=c99
+CFLAGS=-O0 -fopenmp -g3 -std=c99
 LIB=
 endif
 
