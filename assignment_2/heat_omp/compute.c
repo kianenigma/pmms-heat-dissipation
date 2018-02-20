@@ -82,9 +82,8 @@ void do_compute(const struct parameters* p, struct results *r)
 
         #pragma omp parallel for \
         private(this_row_start_idx, row_down_start_idx, row_up_start_idx, col_left, col_right, \
-                this_cell_index, cond_weight, cond_weight_remain, t_surface_value) \
-        num_threads(p->nthreads)\
-        reduction(max: max_diff)
+                this_cell_index, cond_weight, cond_weight_remain, t_surface_value, abs_diff) \
+        num_threads(p->nthreads)
         for(row = 0; row < N; row++) {
             this_row_start_idx = row*M;
             row_down_start_idx = this_row_start_idx+M; // can be used because of boundary halo grid points
@@ -192,11 +191,6 @@ void do_compute(const struct parameters* p, struct results *r)
             }
             temp[this_cell_index] = temp_index;
         }
-
-
-//        time_t current_time;
-//        current_time = time(NULL);
-//        printf("thread %d | Current time is %d\n",omp_get_thread_num(), current_time);
 
         tmp_ptr = temp;
         temp = t_surface;
