@@ -5,7 +5,7 @@
 #include "stdio.h"
 
 #include "compute.h"
-#include "output.h"
+#define M_SQRT2    1.41421356237309504880
 
 /* Does the reduction step and return if the convergence has setteled */
 static int fill_report(const struct parameters *p, struct results *r,
