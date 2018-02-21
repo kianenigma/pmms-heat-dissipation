@@ -8,7 +8,7 @@
 #define M_SQRT2    1.41421356237309504880
 
 /* Does the reduction step and return if the convergence has setteled */
-static int fill_report(const struct parameters *p, struct results *r,
+static inline int fill_report(const struct parameters *p, struct results *r,
                        size_t h, size_t w,
                        double (*restrict a)[h][w],
                        double (*restrict b)[h][w],
@@ -103,15 +103,12 @@ void do_compute(const struct parameters* p, struct results *r)
 
     /* omp initial logs */
     printf("OMP :: max threads of systems %d | will use: %d\n", omp_get_max_threads(), p->nthreads);
-    /*
-     * If initialization should be included in the timings
-     * could be a point of discussion.
-     */
+
     gettimeofday(&before, NULL);
-
-
     for (iter = 1; iter <= p->maxiter; ++iter)
     {
+        double maxdiff = 0.0;
+
         /* swap source and destination */
         { void *tmp = src; src = dst; dst = tmp; }
 
@@ -121,9 +118,9 @@ void do_compute(const struct parameters* p, struct results *r)
         /* compute */
         #pragma omp parallel for \
         private(i, j)\
-        schedule(static)\
+        schedule(guided)\
         num_threads(p->nthreads)
-        for (i = 1; i < h - 1; ++i)
+        for (i = 1; i < h - 1; ++i) {
             for (j = 1; j < w - 1; ++j)
             {
                 double w = (*c)[i][j];
@@ -138,12 +135,26 @@ void do_compute(const struct parameters* p, struct results *r)
                                 (*src)[i+1][j-1] + (*src)[i+1][j+1]) * (restw * c_cdiag);
 
             }
+        }
+        
+        #pragma omp parallel for private(i, j ) reduction(max: maxdiff)
+        for (i = 1; i < h - 1; ++i) {
+            for (j = 1; j < w - 1; ++j) {
+                double v = (*dst)[i][j];
+                double v_old = (*src)[i][j];
+                double diff = fabs(v - v_old);
+                if (diff > maxdiff) maxdiff = diff;
+            }
+        }
+
+        if ( maxdiff < p->threshold ) { break; }
+
 
         /* conditional reporting */
-        if (iter % p->period == 0) {
-            if(fill_report(p, r, h, w, dst, src, iter, &before)) {iter++; break;}
-            if(p->printreports) report_results(p, r);
-        }
+//        if (iter % p->period == 0) {
+//            if(fill_report(p, r, h, w, dst, src, iter, &before)) {iter++; break;}
+//            if(p->printreports) report_results(p, r);
+//        }
     }
 
     /* report at end in all cases */
