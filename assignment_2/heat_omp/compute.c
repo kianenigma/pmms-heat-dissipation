@@ -7,8 +7,6 @@
 #include "compute.h"
 #include "output.h"
 
-#define THREADS 4
-
 /* Does the reduction step and return if the convergence has setteled */
 static int fill_report(const struct parameters *p, struct results *r,
                        size_t h, size_t w,
@@ -104,7 +102,7 @@ void do_compute(const struct parameters* p, struct results *r)
     double (*restrict dst)[h][w] = g1;
 
     /* omp initial logs */
-    printf("OMP :: max threads of systems %d | will use: %d\n", omp_get_max_threads(), THREADS);
+    printf("OMP :: max threads of systems %d | will use: %d\n", omp_get_max_threads(), p->nthreads);
     /*
      * If initialization should be included in the timings
      * could be a point of discussion.
@@ -123,7 +121,8 @@ void do_compute(const struct parameters* p, struct results *r)
         /* compute */
         #pragma omp parallel for \
         private(i, j)\
-        schedule(static)
+        schedule(static)\
+        num_threads(p->nthreads)
         for (i = 1; i < h - 1; ++i)
             for (j = 1; j < w - 1; ++j)
             {
