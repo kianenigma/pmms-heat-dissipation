@@ -81,43 +81,87 @@ void merge(int *a, long low, long mid, long high, int *b) {
     }
 }
 
-void split(int *b, long low, long high, int *a) {
+void split_seq(int *b, long low, long high, int *a) {
     if(high - low < 2)
         return;
 
     // recursively split
     long mid = (low + high) >> 1; // divide by 2
-    split(a, low, mid, b); // sort left part
-    split(a, mid, high, b); // sort right part
+    split_seq(a, low, mid, b); // sort left part
+    split_seq(a, mid, high, b); // sort right part
 
     // merge from b to a
     merge(b, low, mid, high, a);
 }
 
+void split_parallel(int *b, long low, long high, int *a) {
+    // TODO: play around with the parallelism threshold
+    if(high - low < 1000) {
+        split_seq(b, low, high, a);
+        return;
+    }
 
+    // recursively split
+    long mid = (low + high) >> 1; // divide by 2
+#pragma omp task shared(a, b) firstprivate(low, mid)
+    split_parallel(a, low, mid, b); // sort left part
+#pragma omp task shared(a, b) firstprivate(mid, high)
+    split_parallel(a, mid, high, b); // sort right part
+
+#pragma omp taskwait
+
+    // merge from b to a
+    merge(b, low, mid, high, a);
+}
 
 /* Sort vector v of l elements using mergesort */
-void msort(int *v, long l){
+void msort_parallel(int *v, long l){
+    struct timeval tv1, tv2;
 
     int *b = (int*)malloc(l*sizeof(int));
     memcpy(b, v, l*sizeof(int));
 
-    split(b, 0, l, v);
+    omp_set_num_threads(4);
+    printf("Running in parallel with OpenMP. Max no of threads: %d \n", omp_get_max_threads());
+
+    gettimeofday(&tv1, NULL);
+#pragma omp parallel shared(v, l, b)
+    {
+#pragma omp single
+        split_parallel(b, 0, l, v);
+    }
+    gettimeofday(&tv2, NULL);
+
+    print_results(tv1, tv2, l, v);
 }
 
+void msort_seq(int *v, long l) {
+    struct timeval tv1, tv2;
+
+    int *b = (int*)malloc(l*sizeof(int));
+    memcpy(b, v, l*sizeof(int));
+
+    printf("Running sequential\n");
+
+    gettimeofday(&tv1, NULL);
+    split_seq(b, 0, l, v);
+    gettimeofday(&tv2, NULL);
+
+    print_results(tv1, tv2, l, v);
+}
 
 
 int main(int argc, char **argv) {
 
   int c;
   int seed = 42;
-  long length = 1e4;
+  long length = 1e8;
   Order order = ASCENDING;
   int *vector;
-  struct timeval tv1, tv2;
+  int sequential = 0;
 
   /* Read command-line options. */
-  while((c = getopt(argc, argv, "adrgl:s:")) != -1) {
+  while((c = getopt(argc, argv, "adrgl:s:S")) != -1) {
     switch(c) {
       case 'a':
         order = ASCENDING;
@@ -136,7 +180,10 @@ int main(int argc, char **argv) {
         break;
       case 's':
         seed = atoi(optarg);
-	break;
+	    break;
+      case 'S':
+        sequential = 1;
+        break;
       case '?':
         if(optopt == 'l' || optopt == 's') {
           fprintf(stderr, "Option -%c requires an argument.\n", optopt);
@@ -187,16 +234,15 @@ int main(int argc, char **argv) {
         print_v(vector, length);
     }
 
-    gettimeofday(&tv1, NULL);
-    /* Sort */
-    msort(vector, length);
-    gettimeofday(&tv2, NULL);
+    if(sequential) {
+        msort_seq(vector, length);
+    } else {
+        msort_parallel(vector, length);
+    }
 
     if(debug) {
         print_v(vector, length);
     }
-
-    print_results(tv1, tv2, length, vector);
 
     return 0;
 }
