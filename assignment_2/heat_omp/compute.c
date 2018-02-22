@@ -79,6 +79,7 @@ void do_compute(const struct parameters* p, struct results *r)
 
     do {
         max_diff = DBL_MIN;             // reset max_diff before each iteration
+        int do_diff = niter % p->period == 0 ? 1 : 0;
 
         #pragma omp parallel for \
         private(this_row_start_idx, row_down_start_idx, row_up_start_idx, col_left, col_right, \
@@ -91,6 +92,7 @@ void do_compute(const struct parameters* p, struct results *r)
             row_up_start_idx = this_row_start_idx-M; // can be used because of boundary halo grid points
 
             for(col = 1; col < upper_bound; col++) {
+
                 col_left = col-1;
                 col_right = col+1;
                 this_cell_index = this_row_start_idx + col;
@@ -115,10 +117,12 @@ void do_compute(const struct parameters* p, struct results *r)
 
 
                 // calculate absolute diff between new and old value
-                abs_diff.d = t_surface_value - temp_index;
-                abs_diff.i = abs_bitmask & abs_diff.i;
-                if(abs_diff.d > max_diff) {
-                    max_diff = abs_diff.d;
+                if ( do_diff == 1 ) {
+                    abs_diff.d = t_surface_value - temp_index;
+                    abs_diff.i = abs_bitmask & abs_diff.i;
+                    if(abs_diff.d > max_diff) {
+                        max_diff = abs_diff.d;
+                    }
                 }
 
                 temp[this_cell_index] = temp_index;
@@ -150,10 +154,12 @@ void do_compute(const struct parameters* p, struct results *r)
             ); // diagonal neighbours
 
             // calculate absolute diff between new and old value
-            abs_diff.d = t_surface_value - temp_index;
-            abs_diff.i = abs_bitmask & abs_diff.i;
-            if(abs_diff.d > max_diff) {
-                max_diff = abs_diff.d;
+            if ( do_diff ) {
+                abs_diff.d = t_surface_value - temp_index;
+                abs_diff.i = abs_bitmask & abs_diff.i;
+                if(abs_diff.d > max_diff) {
+                    max_diff = abs_diff.d;
+                }
             }
             temp[this_row_start_idx] = temp_index;
 
@@ -185,11 +191,14 @@ void do_compute(const struct parameters* p, struct results *r)
 
 
             // calculate absolute diff between new and old value
-            abs_diff.d = t_surface_value - temp_index;
-            abs_diff.i = abs_bitmask & abs_diff.i;
-            if(abs_diff.d > max_diff) {
-                max_diff = abs_diff.d;
+            if ( do_diff ) {
+                abs_diff.d = t_surface_value - temp_index;
+                abs_diff.i = abs_bitmask & abs_diff.i;
+                if(abs_diff.d > max_diff) {
+                    max_diff = abs_diff.d;
+                }
             }
+
             temp[this_cell_index] = temp_index;
         }
 
@@ -204,6 +213,9 @@ void do_compute(const struct parameters* p, struct results *r)
 
         niter += 1;
 
+        if ( do_diff ) {
+            if ( max_diff <= p->threshold ) { break; }
+        }
         // report results
 //        if (p->printreports == 1) {
 //            if (niter % p->period == 0 && niter < p->maxiter) {
@@ -217,7 +229,7 @@ void do_compute(const struct parameters* p, struct results *r)
 //            }
 //        }
 
-    } while( niter < maxiter && max_diff >= threshold );
+    } while( niter < maxiter );
 
     // prepare final results
     gettimeofday(&tv2, NULL);
