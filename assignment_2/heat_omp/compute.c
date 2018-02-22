@@ -136,18 +136,20 @@ void do_compute(const struct parameters* p, struct results *r)
 
             }
         }
-        
-        #pragma omp parallel for private(i, j ) reduction(max: maxdiff) num_threads(p->nthreads)
-        for (i = 1; i < h - 1; ++i) {
-            for (j = 1; j < w - 1; ++j) {
-                double v = (*dst)[i][j];
-                double v_old = (*src)[i][j];
-                double diff = fabs(v - v_old);
-                if (diff > maxdiff) maxdiff = diff;
-            }
-        }
 
-        if ( maxdiff < p->threshold ) { break; }
+        if (iter % p->period == 0 ) {
+            #pragma omp parallel for private(i, j ) reduction(max: maxdiff) num_threads(p->nthreads)
+            for (i = 1; i < h - 1; ++i) {
+                for (j = 1; j < w - 1; ++j) {
+                    double v = (*dst)[i][j];
+                    double v_old = (*src)[i][j];
+                    double diff = fabs(v - v_old);
+                    if (diff > maxdiff) maxdiff = diff;
+                }
+            }
+
+            if ( maxdiff < p->threshold ) { break; }
+        }
 
 
         /* conditional reporting */
