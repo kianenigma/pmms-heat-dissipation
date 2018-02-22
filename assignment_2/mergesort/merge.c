@@ -10,7 +10,7 @@
 /* Ordering of the vector */
 typedef enum Ordering {ASCENDING, DESCENDING, RANDOM} Order;
 
-int debug = 1;
+int debug = 0;
 
 void print_v(int *v, long l) {
     printf("\n");
@@ -24,6 +24,24 @@ void print_v(int *v, long l) {
 }
 
 /**
+ * Checks whether the given vector is in sorted in ascending order.
+ * @param v pointer the sorted vector
+ * @param l length of the vector
+ * @return 0 if not sorted, 1 if sorted
+ */
+int check_result(int *v, long l) {
+    int prev = v[0];
+
+    for(long i = 1; i < l; i++) {
+        if(prev > v[i]) {
+            return 0;
+        }
+        prev = v[i];
+    }
+    return 1;
+}
+
+/**
  * Calculates and prints results of sorting. E.g.
  *  Elements     Time in s    Elements/s
  *  10000000  3.134850e-01  3.189945e+07
@@ -32,13 +50,11 @@ void print_v(int *v, long l) {
  * @param tv2 secon time value
  * @param length number of elements sorted
  */
-void print_results(struct timeval tv1, struct timeval tv2, long length) {
+void print_results(struct timeval tv1, struct timeval tv2, long length, int *v) {
     double time = (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
                      (double) (tv2.tv_sec - tv1.tv_sec);
-
-    printf("Output:\n\n"
-                   "%10s %13s %13s\n",
-           "Elements", "Time in s", "Elements/s");
+    printf("Output (%s):\n\n %10s %13s %13s\n",
+           check_result(v, length) == 0 ? "incorrect" : "correct", "Elements", "Time in s", "Elements/s");
     printf("%10zu % .6e % .6e\n",
            length,
            time,
@@ -70,7 +86,7 @@ void split(int *b, long low, long high, int *a) {
         return;
 
     // recursively split
-    long mid = (low + high) / 2;
+    long mid = (low + high) >> 1; // divide by 2
     split(a, low, mid, b); // sort left part
     split(a, mid, high, b); // sort right part
 
@@ -180,7 +196,7 @@ int main(int argc, char **argv) {
         print_v(vector, length);
     }
 
-    print_results(tv1, tv2, length);
+    print_results(tv1, tv2, length, vector);
 
     return 0;
 }
