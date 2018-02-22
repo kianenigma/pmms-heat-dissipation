@@ -1,9 +1,10 @@
-
+#include <sys/time.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <stdio.h>
 #include <ctype.h>
+#include <string.h>
 #include <omp.h>
 
 /* Ordering of the vector */
@@ -11,21 +12,84 @@ typedef enum Ordering {ASCENDING, DESCENDING, RANDOM} Order;
 
 int debug = 1;
 
+void print_v(int *v, long l) {
+    printf("\n");
+    for(long i = 0; i < l; i++) {
+        if(i != 0 && (i % 10 == 0)) {
+            printf("\n");
+        }
+        printf("%d ", v[i]);
+    }
+    printf("\n");
+}
+
+/**
+ * Calculates and prints results of sorting. E.g.
+ *  Elements     Time in s    Elements/s
+ *  10000000  3.134850e-01  3.189945e+07
+ *
+ * @param tv1 first time value
+ * @param tv2 secon time value
+ * @param length number of elements sorted
+ */
+void print_results(struct timeval tv1, struct timeval tv2, long length) {
+    double time = (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
+                     (double) (tv2.tv_sec - tv1.tv_sec);
+
+    printf("Output:\n\n"
+                   "%10s %13s %13s\n",
+           "Elements", "Time in s", "Elements/s");
+    printf("%10zu % .6e % .6e\n",
+           length,
+           time,
+           (double) length / time);
+
+}
+
+// Left source half is  A[low:mid-1].
+// Right source half is A[mid:high-1].
+// Result is            B[low:high-1].
+void merge(int *a, long low, long mid, long high, int *b) {
+    long i = low, j = mid;
+
+    // While there are elements in the left or right list...
+    for(long k = low; k < high; k++) {
+        // If left list head exists and is <= existing right list head.
+        if(i < mid && (j >= high || a[i] <= a[j])) {
+            b[k] = a[i];
+            i++;
+        } else {
+            b[k] = a[j];
+            j++;
+        }
+    }
+}
+
+void split(int *b, long low, long high, int *a) {
+    if(high - low < 2)
+        return;
+
+    // recursively split
+    long mid = (low + high) / 2;
+    split(a, low, mid, b); // sort left part
+    split(a, mid, high, b); // sort right part
+
+    // merge from b to a
+    merge(b, low, mid, high, a);
+}
+
+
+
 /* Sort vector v of l elements using mergesort */
 void msort(int *v, long l){
 
+    int *b = (int*)malloc(l*sizeof(int));
+    memcpy(b, v, l*sizeof(int));
+
+    split(b, 0, l, v);
 }
 
-void print_v(int *v, long l) {
-  printf("\n");
-  for(long i = 0; i < l; i++) {
-    if(i != 0 && (i % 10 == 0)) {
-      printf("\n");
-    }
-    printf("%d ", v[i]);
-  }
-  printf("\n");
-}
+
 
 int main(int argc, char **argv) {
 
@@ -34,6 +98,7 @@ int main(int argc, char **argv) {
   long length = 1e4;
   Order order = ASCENDING;
   int *vector;
+  struct timeval tv1, tv2;
 
   /* Read command-line options. */
   while((c = getopt(argc, argv, "adrgl:s:")) != -1) {
@@ -101,17 +166,22 @@ int main(int argc, char **argv) {
       break;
   }
 
-  if(debug) {
-    print_v(vector, length);
-  }
 
-  /* Sort */
-  msort(vector, length);
+    if(debug) {
+        print_v(vector, length);
+    }
 
-  if(debug) {
-    print_v(vector, length);
-  }
+    gettimeofday(&tv1, NULL);
+    /* Sort */
+    msort(vector, length);
+    gettimeofday(&tv2, NULL);
 
-  return 0;
+    if(debug) {
+        print_v(vector, length);
+    }
+
+    print_results(tv1, tv2, length);
+
+    return 0;
 }
 
