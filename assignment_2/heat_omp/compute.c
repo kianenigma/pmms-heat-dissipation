@@ -149,14 +149,39 @@ void do_compute(const struct parameters* p, struct results *r)
             }
 
             if ( maxdiff < p->threshold ) { break; }
+
+            if ( p->printreports ) {
+                double tmin = INFINITY, tmax = -INFINITY;
+                double sum = 0.0;
+                struct timeval after;
+
+                /* We have said that the final reduction does not need to be included. */
+                gettimeofday(&after, NULL);
+
+                for (i = 1; i < h - 1; ++i) {
+                    for (j = 1; j < w - 1; ++j) {
+                        double v = (*dst)[i][j];
+                        double v_old = (*src)[i][j];
+
+                        sum += v;
+                        if (tmin > v) tmin = v;
+                        if (tmax < v) tmax = v;
+                    }
+                }
+
+                r->niter = iter;
+                r->maxdiff = maxdiff;
+                r->tmin = tmin;
+                r->tmax = tmax;
+                r->tavg = sum / (p->N * p->M);
+
+                r->time = (double)(after.tv_sec - before.tv_sec) +
+                          (double)(after.tv_usec - before.tv_usec) / 1e6;
+
+                report_results(p, r);
+
+            }
         }
-
-
-        /* conditional reporting */
-//        if (iter % p->period == 0) {
-//            if(fill_report(p, r, h, w, dst, src, iter, &before)) {iter++; break;}
-//            if(p->printreports) report_results(p, r);
-//        }
     }
 
     /* report at end in all cases */
