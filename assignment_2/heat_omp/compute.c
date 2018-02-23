@@ -119,32 +119,28 @@ void do_compute(const struct parameters* p, struct results *r)
 #pragma omp parallel for \
         private(i, j)\
         schedule(guided)\
+        reduction(max: maxdiff)\
         num_threads(p->nthreads)
         for (i = 1; i < h - 1; ++i) {
             for (j = 1; j < w - 1; ++j)
             {
                 double w = (*c)[i][j];
                 double restw = 1.0 - w;
+                double v, v_old;
+                v_old = (*src)[i][j];
 
-                (*dst)[i][j] = w * (*src)[i][j] +
+                 v = w * v_old +
                                ((*src)[i+1][j  ] + (*src)[i-1][j  ] +
                                 (*src)[i  ][j+1] + (*src)[i  ][j-1]) * (restw * c_cdir) +
                                ((*src)[i-1][j-1] + (*src)[i-1][j+1] +
                                 (*src)[i+1][j-1] + (*src)[i+1][j+1]) * (restw * c_cdiag);
 
-            }
-        }
-
-#pragma omp parallel for private(i, j ) reduction(max: maxdiff) num_threads(p->nthreads)
-        for (i = 1; i < h - 1; ++i) {
-            for (j = 1; j < w - 1; ++j) {
-                double v = (*dst)[i][j];
-                double v_old = (*src)[i][j];
                 double diff = fabs(v - v_old);
                 if (diff > maxdiff) maxdiff = diff;
+                (*dst)[i][j] = v;
             }
         }
-
+        
         if ( maxdiff < p->threshold ) { break; }
 
         if ( p->printreports ) {
