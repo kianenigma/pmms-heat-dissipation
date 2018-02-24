@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <omp.h>
