@@ -115,21 +115,22 @@ void split_parallel(int *b, long low, long high, int *a) {
 }
 
 /* Sort vector v of l elements using mergesort */
-void msort_parallel(int *v, long l){
+void msort_parallel(int *v, long l, int threads){
     struct timeval tv1, tv2;
 
     int *b = (int*)malloc(l*sizeof(int));
     memcpy(b, v, l*sizeof(int));
 
-    omp_set_num_threads(4);
-
-    printf("Running in parallel with OpenMP. Max no of threads: %d \n", omp_get_max_threads());
+    omp_set_num_threads(threads);
+    printf("Running in parallel with OpenMP. No of threads: %d \n", omp_get_max_threads());
 
     gettimeofday(&tv1, NULL);
-#pragma omp parallel shared(v, l, b)
+#pragma omp parallel shared(v, l, b) num_threads(threads)
     {
 #pragma omp single
-        split_parallel(b, 0, l, v);
+        {
+            split_parallel(b, 0, l, v);
+        };
     }
     gettimeofday(&tv2, NULL);
 
@@ -160,9 +161,10 @@ int main(int argc, char **argv) {
   Order order = ASCENDING;
   int *vector;
   int sequential = 0;
+  int threads = 1;
 
   /* Read command-line options. */
-  while((c = getopt(argc, argv, "adrgl:s:S")) != -1) {
+  while((c = getopt(argc, argv, "adrgl:s:St:")) != -1) {
     switch(c) {
       case 'a':
         order = ASCENDING;
@@ -184,6 +186,9 @@ int main(int argc, char **argv) {
 	    break;
       case 'S':
         sequential = 1;
+        break;
+      case 't':
+        threads = atoi(optarg);
         break;
       case '?':
         if(optopt == 'l' || optopt == 's') {
@@ -238,7 +243,7 @@ int main(int argc, char **argv) {
     if(sequential) {
         msort_seq(vector, length);
     } else {
-        msort_parallel(vector, length);
+        msort_parallel(vector, length, threads);
     }
 
     if(debug) {
