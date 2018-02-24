@@ -1,16 +1,21 @@
-
 #include <stdlib.h>
 #include <unistd.h>
-#include <getopt.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <omp.h>
 #include <string.h>
 #include <sys/time.h>
 
+#define TASK_THREADS 6
+#define DATA_THREADS 2
+
+
 /* Ordering of the vector */
 typedef enum Ordering {ASCENDING, DESCENDING, RANDOM} Order;
 
+/**
+ * Print a pointer vector
+ */
 void print_v(int *v, long l) {
   printf("\n");
   for(long i = 0; i < l; i++) {
@@ -22,6 +27,12 @@ void print_v(int *v, long l) {
   printf("\n");
 }
 
+/**
+ * Print a two dim pointer vector
+ * @param v vector
+ * @param rows
+ * @param length
+ */
 void print_2d_v(int **v, long rows, long length) {
   printf("\n");
   for (long i = 0; i < rows; i++) {
@@ -44,6 +55,8 @@ int check_result(int **v, long rows, long l) {
 
     for(long i = 1; i < l; i++) {
       if(prev > v[r][i]) {
+        printf("warning: vector at row[%d] is not sorted", r);
+        print_v(v[r], l);
         return 0;
       }
       prev = v[r][i];
@@ -65,8 +78,8 @@ int check_result(int **v, long rows, long l) {
 void print_results(struct timeval tv1, struct timeval tv2, long length, long rows, int **v) {
   double time = (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
                 (double) (tv2.tv_sec - tv1.tv_sec);
-  printf("Output (%s):\n\n %10s %13s %13s\n",
-         check_result(v, rows, length) == 0 ? "incorrect" : "correct", "Elements", "Time in s", "Elements/s");
+  printf("Output \033[32;1m(%s)\033[0m:\n\n %10s %13s %13s\n ",
+         check_result(v, rows, length) == 0 ? "incorrect" : "correct", " Elements", "Time in s", "Elements/s");
   printf("%10zu % .6e % .6e\n",
          length*rows,
          time,
@@ -74,9 +87,11 @@ void print_results(struct timeval tv1, struct timeval tv2, long length, long row
 
 }
 
-// Left source half is  A[low:mid-1].
-// Right source half is A[mid:high-1].
-// Result is            B[low:high-1].
+/**
+ * Left source half is  A[low:mid-1].
+ * Right source half is A[mid:high-1].
+ * Result is B[low:high-1].
+ */
 void merge(int *a, long low, long mid, long high, int *b) {
   long i = low, j = mid;
 
@@ -106,6 +121,103 @@ void split_seq(int *b, long low, long high, int *a) {
   merge(b, low, mid, high, a);
 }
 
+void split_parallel(int *b, long low, long high, int *a) {
+  // TODO: play around with the parallelism threshold
+  if(high - low < 1000) {
+    split_seq(b, low, high, a);
+    return;
+  }
+
+  // recursively split
+  long mid = (low + high) >> 1; // divide by 2
+#pragma omp task shared(a, b) firstprivate(low, mid)
+  split_parallel(a, low, mid, b); // sort left part
+#pragma omp task shared(a, b) firstprivate(mid, high)
+  split_parallel(a, mid, high, b); // sort right part
+
+#pragma omp taskwait
+
+  // merge from b to a
+  merge(b, low, mid, high, a);
+}
+
+/**
+ * Sort the vector of vectors with data paralellism
+ * @param vector
+ * @param rows
+ * @param length
+ */
+void vecsort_datapar(int **vector, long rows, long length) {
+  struct timeval tv1, tv2;
+
+  printf("Running parallel - Rows %d Length %d\n", rows, length);
+  printf("Number of threads for data par %d\n", DATA_THREADS);
+
+  int **b = (int**) malloc(sizeof(int) * rows * length);
+  long row;
+
+  /* initialize b */
+  for (row = 0; row < rows; row++) {
+    b[row] = (int*) malloc(sizeof(int) * length);
+    memcpy(b[row], vector[row], length * sizeof(int));
+  }
+
+  /* start sorting one by one */
+  gettimeofday(&tv1, NULL);
+#pragma omp parallel for
+  for (row = 0; row < rows; row++) {
+    split_seq(b[row], 0, length, vector[row]);
+  }
+  gettimeofday(&tv2, NULL);
+
+  print_results(tv1, tv2, length, rows, vector);
+}
+
+/**
+ * Sort the vector of vectors with both data and task paralellism
+ * @param vector
+ * @param rows
+ * @param length
+ */
+void vecsort_taskpar(int **vector, long rows, long length) {
+  struct timeval tv1, tv2;
+
+  printf("Running parallel - Rows %d Length %d\n", rows, length);
+  printf("Number of threads for data par %d\n", DATA_THREADS);
+  printf("Number of threads for task par %d\n", TASK_THREADS);
+
+  /* needed to enable nested parallelism */
+  omp_set_nested(1);
+
+  int **b = (int**) malloc(sizeof(int) * rows * length);
+
+  /* initialize b */
+  for (long row = 0; row < rows; row++) {
+    b[row] = (int*) malloc(sizeof(int) * length);
+    memcpy(b[row], vector[row], length * sizeof(int));
+  }
+
+  /* start sorting one by one */
+  gettimeofday(&tv1, NULL);
+#pragma omp parallel num_threads(DATA_THREADS)
+  {
+#pragma omp for
+    for (long row = 0; row < rows; row++) {
+#pragma omp parallel num_threads(TASK_THREADS)
+      {
+#pragma omp single
+        {
+          split_parallel(b[row], 0, length, vector[row]);
+        };
+      }
+    }
+  }
+
+  gettimeofday(&tv2, NULL);
+
+  print_results(tv1, tv2, length, rows, vector);
+}
+
 void vecsort_seq(int **vector, long rows, long length) {
   struct timeval tv1, tv2;
 
@@ -129,14 +241,6 @@ void vecsort_seq(int **vector, long rows, long length) {
   print_results(tv1, tv2, length, rows, vector);
 }
 
-
-
-
-
-void vecsort_par() {
-
-}
-
 int main(int argc, char **argv) {
 
   int c;
@@ -144,11 +248,12 @@ int main(int argc, char **argv) {
   long length = 1e4;
   long rows = 1e2;
   int sequential = 0;
+  int datapar_only = 0;
   int debug = 0;
   Order order = ASCENDING;
 
   /* Read command-line options. */
-  while((c = getopt(argc, argv, "adrgl:s:R:S")) != -1) {
+  while((c = getopt(argc, argv, "adrgl:s:R:SD")) != -1) {
     switch(c) {
       case 'a':
         order = ASCENDING;
@@ -173,6 +278,9 @@ int main(int argc, char **argv) {
         break;
       case 'S':
         sequential = 1;
+        break;
+      case 'D':
+        datapar_only = 1;
         break;
       case '?':
         if(optopt == 'l' || optopt == 's') {
@@ -238,6 +346,14 @@ int main(int argc, char **argv) {
   /* Sort */
   if (sequential) {
     vecsort_seq(vector, rows, length);
+  }
+  else {
+    if ( datapar_only ) {
+      vecsort_datapar(vector, rows, length);
+    }
+    else {
+      vecsort_taskpar(vector, rows, length);
+    }
   }
 
   if (debug) {

@@ -122,6 +122,7 @@ void msort_parallel(int *v, long l){
     memcpy(b, v, l*sizeof(int));
 
     omp_set_num_threads(4);
+
     printf("Running in parallel with OpenMP. Max no of threads: %d \n", omp_get_max_threads());
 
     gettimeofday(&tv1, NULL);
