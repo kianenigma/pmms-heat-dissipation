@@ -118,7 +118,7 @@ void do_compute(const struct parameters* p, struct results *r)
         /* compute */
 #pragma omp parallel for \
         private(i, j)\
-        schedule(guided)\
+        schedule(static)\
         reduction(max: maxdiff)\
         num_threads(p->nthreads)
         for (i = 1; i < h - 1; ++i) {
