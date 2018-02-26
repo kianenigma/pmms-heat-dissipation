@@ -3,9 +3,16 @@
 #include <math.h>
 #include <stdlib.h>
 #include "stdio.h"
+#include "time.h"
 
 #include "compute.h"
 #define M_SQRT2    1.41421356237309504880
+
+long int timeval_subtract(struct timeval *t2, struct timeval *t1)
+{
+     return (t2->tv_usec + 1000000 * t2->tv_sec) - (t1->tv_usec + 1000000 * t1->tv_sec);
+
+}
 
 /* Does the reduction step and return if the convergence has setteled */
 static inline int fill_report(const struct parameters *p, struct results *r,
@@ -62,7 +69,7 @@ static void do_copy(size_t h, size_t w,
 
 void do_compute_seq(const struct parameters* p, struct results *r)
 {
-  printf("Running Sequential\n");
+    printf("Running Sequential\n");
     size_t i, j;
 
     /* alias input parameters */
@@ -102,9 +109,15 @@ void do_compute_seq(const struct parameters* p, struct results *r)
     double (*restrict src)[h][w] = g2;
     double (*restrict dst)[h][w] = g1;
 
+    struct timeval t1, t2;
+    long int par, seq;
+    par = 0;
+    seq = 0;
+
     gettimeofday(&before, NULL);
     for (iter = 1; iter <= p->maxiter; ++iter)
     {
+        gettimeofday(&t1, NULL);
         double maxdiff = 0.0;
 
         /* swap source and destination */
@@ -113,6 +126,10 @@ void do_compute_seq(const struct parameters* p, struct results *r)
         /* initialize halo on source */
         do_copy(h, w, src);
 
+        gettimeofday(&t2, NULL);
+        seq = seq + timeval_subtract(&t2, &t1);
+
+        gettimeofday(&t1, NULL);
         /* compute */
         for (i = 1; i < h - 1; ++i) {
             for (j = 1; j < w - 1; ++j)
@@ -127,10 +144,20 @@ void do_compute_seq(const struct parameters* p, struct results *r)
                                 (*src)[i  ][j+1] + (*src)[i  ][j-1]) * (restw * c_cdir) +
                                ((*src)[i-1][j-1] + (*src)[i-1][j+1] +
                                 (*src)[i+1][j-1] + (*src)[i+1][j+1]) * (restw * c_cdiag);
+                (*dst)[i][j] = v;
+            }
+        }
+        gettimeofday(&t2, NULL);
+        par = par + timeval_subtract(&t2, &t1);
+
+        gettimeofday(&t1, NULL);
+        for (i = 0; i < h -1; ++i) {
+            for (j = 0; j < w -1; ++j) {
+                double v_old = (*src)[i][j];
+                double v = (*dst)[i][j];
 
                 double diff = fabs(v - v_old);
                 if (diff > maxdiff) maxdiff = diff;
-                (*dst)[i][j] = v;
             }
         }
         
@@ -167,8 +194,15 @@ void do_compute_seq(const struct parameters* p, struct results *r)
             report_results(p, r);
 
         }
-    }
 
+        gettimeofday(&t2, NULL);
+        seq = seq + timeval_subtract(&t2, &t1);
+    }
+    double _seq = seq / 1e6;
+    double _par = par / 1e6;
+    double _sum = _seq + _par;
+    double _f = _seq / _sum;
+    printf("par %lf / seq %lf / sum %lf / f %lf / max speedup = 1/f = %lf\n", _par, _seq, _sum, _f, 1/_f);
     /* report at end in all cases */
     fill_report(p, r, h, w, dst, src, iter, &before);
 
