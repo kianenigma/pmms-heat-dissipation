@@ -139,7 +139,34 @@ void do_compute_seq(const struct parameters* p, struct results *r)
                 double v, v_old;
                 v_old = (*src)[i][j];
 
-                 v = w * v_old +
+                /*
+                 * Flops:
+                 * restw computation = 1
+                 * 3 addition of neighboars times 2 = 6
+                 * 2 multiply of restw to dir/diag weight = 2
+                 * the sum of last two lines = 1
+                 * multiply of w and v_old = 1
+                 * fabs = 1
+                 * compare = 1
+                 * main sum = 1
+                 *
+                 * ### Total = 11
+                 *
+                 * Mem:
+                 * in update loop = 8
+                 * get prev value = 1
+                 * get conductivity = 1
+                 * store new value = 1
+                 *
+                 * Compute intensity = 14 / 10 = 1.4
+                 *
+                 * Max GFLOP = min (
+                 *                  38.4
+                 *                  25.6 * 1.4
+                 * ) = 35.84 GFLOPS
+                 *
+                 */
+                v = w * v_old +
                                ((*src)[i+1][j  ] + (*src)[i-1][j  ] +
                                 (*src)[i  ][j+1] + (*src)[i  ][j-1]) * (restw * c_cdir) +
                                ((*src)[i-1][j-1] + (*src)[i-1][j+1] +
@@ -160,7 +187,14 @@ void do_compute_seq(const struct parameters* p, struct results *r)
                 if (diff > maxdiff) maxdiff = diff;
             }
         }
-        
+
+        gettimeofday(&t2, NULL);
+        long int diff_time = timeval_subtract(&t2, &t1);
+        seq = seq + (2*diff_time/4);
+        par = par + (2*diff_time/4);
+
+
+        gettimeofday(&t1, NULL);
         if ( maxdiff < p->threshold ) { break; }
 
         if ( p->printreports ) {
@@ -203,6 +237,7 @@ void do_compute_seq(const struct parameters* p, struct results *r)
     double _sum = _seq + _par;
     double _f = _seq / _sum;
     printf("par %lf / seq %lf / sum %lf / f %lf / max speedup = 1/f = %lf\n", _par, _seq, _sum, _f, 1/_f);
+
     /* report at end in all cases */
     fill_report(p, r, h, w, dst, src, iter, &before);
 
