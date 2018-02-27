@@ -12,6 +12,11 @@ typedef enum Ordering {ASCENDING, DESCENDING, RANDOM} Order;
 
 int debug = 0;
 
+/**
+ * Prints the given vector.
+ * @param v pointer to vector
+ * @param l length of the vector
+ */
 void print_v(int *v, long l) {
     printf("\n");
     for(long i = 0; i < l; i++) {
@@ -24,8 +29,8 @@ void print_v(int *v, long l) {
 }
 
 /**
- * Checks whether the given vector is in sorted in ascending order.
- * @param v pointer the sorted vector
+ * Checks whether the given vector is sorted in ascending order.
+ * @param v pointer to the sorted vector
  * @param l length of the vector
  * @return 0 if not sorted, 1 if sorted
  */
@@ -47,7 +52,7 @@ int check_result(int *v, long l) {
  *  10000000  3.134850e-01  3.189945e+07
  *
  * @param tv1 first time value
- * @param tv2 secon time value
+ * @param tv2 second time value
  * @param length number of elements sorted
  */
 void print_results(struct timeval tv1, struct timeval tv2, long length, int *v) {
@@ -62,9 +67,19 @@ void print_results(struct timeval tv1, struct timeval tv2, long length, int *v) 
 
 }
 
-// Left source half is  A[low:mid-1].
-// Right source half is A[mid:high-1].
-// Result is            B[low:high-1].
+/**
+ * Merges two sub-lists together.
+ *
+ * Left source half is  A[low:mid-1]
+ * Right source half is A[mid:high-1]
+ * Result is            B[low:high-1].
+ *
+ * @param a sublist a
+ * @param low lower bound
+ * @param mid mid bound
+ * @param high upper bound
+ * @param b sublist b
+ */
 void merge(int *a, long low, long mid, long high, int *b) {
     long i = low, j = mid;
 
@@ -81,6 +96,14 @@ void merge(int *a, long low, long mid, long high, int *b) {
     }
 }
 
+/**
+ * Sequentially splits the given list and merges them (sorted) together.
+ *
+ * @param b sublist b
+ * @param low lower bound
+ * @param high upper bound
+ * @param a sublist a
+ */
 void split_seq(int *b, long low, long high, int *a) {
     if(high - low < 2)
         return;
@@ -94,8 +117,16 @@ void split_seq(int *b, long low, long high, int *a) {
     merge(b, low, mid, high, a);
 }
 
+/**
+ * Splits in parallel the given list and merges them (sorted) together.
+ *
+ * @param b sublist b
+ * @param low lower bound
+ * @param high upper bound
+ * @param a sublist a
+ */
 void split_parallel(int *b, long low, long high, int *a) {
-    // TODO: play around with the parallelism threshold
+    // parallelism threshold
     if(high - low < 1000) {
         split_seq(b, low, high, a);
         return;
@@ -114,7 +145,13 @@ void split_parallel(int *b, long low, long high, int *a) {
     merge(b, low, mid, high, a);
 }
 
-/* Sort vector v of l elements using mergesort */
+/**
+ * Sorts vector v of l elements using mergesort in parallel.
+ *
+ * @param v vector
+ * @param l length of the vector
+ * @param threads number of threads
+ */
 void msort_parallel(int *v, long l, int threads){
     struct timeval tv1, tv2;
 
@@ -137,6 +174,12 @@ void msort_parallel(int *v, long l, int threads){
     print_results(tv1, tv2, l, v);
 }
 
+/**
+ * Sorts vector v of l elements using mergesort sequentially.
+ *
+ * @param v vector
+ * @param l length of the vector
+ */
 void msort_seq(int *v, long l) {
     struct timeval tv1, tv2;
 
@@ -152,7 +195,20 @@ void msort_seq(int *v, long l) {
     print_results(tv1, tv2, l, v);
 }
 
-
+/*
+ * usage: ./mergesort
+ *
+ * arguments:
+ *      -a                      initial order ascending
+ *      -d                      initial order descending
+ *      -r                      initial order random
+ *      -l {number of elements} length of vector
+ *      -g                      debug mode -> print vector
+ *      -s {seed}               provide seed for srand
+ *      -t {number of threads}  number of threads in parallel execution
+ *      -S                      executes sequentially
+ *
+ */
 int main(int argc, char **argv) {
 
   int c;
