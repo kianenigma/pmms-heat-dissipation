@@ -192,7 +192,7 @@ void vecsort_datapar(int **vector, long rows, long length) {
 
   /* start sorting one by one */
   gettimeofday(&tv1, NULL);
-#pragma omp parallel for
+#pragma omp parallel for num_threads(DATA_THREADS)
   for (row = 0; row < rows; row++) {
     split_seq(b[row], 0, length, vector[row]);
   }
@@ -202,7 +202,7 @@ void vecsort_datapar(int **vector, long rows, long length) {
 }
 
 /**
- * Sort the vector of vectors with both data and task paralellism
+ * Sort the vector of vectors with both data and task parallelism
  * @param vector
  * @param rows
  * @param length
