@@ -292,24 +292,25 @@ void vecsort_seq(int **vector, long rows, long* row_lengths, long sum_elements) 
  *      -a                      initial order ascending
  *      -d                      initial order descending
  *      -r                      initial order random
- *      -l {number of elements} length of each vector. if {-v} is used, this will be the upper bound of size.
- *      -R {number of rows}     number of vectors to create
+ *      -l {number of elements} length of each vector. if {-v} is used, this will be the upper bound of size. default 1000
+ *      -R {number of rows}     number of vectors to create. default 1000
  *      -v                      variable length. if enables, {-R} vectors will be created, each with size in the lange of [l/2, l].
  *      -g                      debug mode -> print vector
  *      -s {seed}               provide seed for srand
  *      -P                      run with data parallelization only.
- *      -D {data threads count} number of threads in data parallel execution
- *      -T {task threads count} number of threads in task parallel execution
+ *      -D {data threads count} number of threads in data parallel execution. default 2
+ *      -T {task threads count} number of threads in task parallel execution. default 6
  *      -S                      executes sequentially
  *
  * Examples:
- *   - a debug example with 10 x 10 dimension and random size (total elements will NTO be 100)
+ *   - a debug example with 10 x 10 dimension and random size (total elements will NTO be 100). Both data and task par with 4 threads each
+ *      ./vecsort -r -R 10 -l 10 -g -v
  *
+ *   - a debug example with 10 x 10 dimension and random size (total elements will be 100). Only data parallel
+ *      ./vecsort -r -R 10 -l 10 -g -P
  *
- *   - a debug example with 10 x 10 dimension and random size (total elements will be 100)
- *
- *
- *   - run a real size example with only data parallel version
+ *   - run a real fixed size example with only data parallel version. 4 Threads each
+ *      ./vecsort -r -R 1000 -l 1000 -P -D 4 -T 4
  */
 int main(int argc, char **argv) {
 
@@ -354,6 +355,7 @@ int main(int argc, char **argv) {
                 break;
             case 'P':
                 datapar_only = 1;
+                break;
             case 'v':
                 var_length = 1;
                 break;
