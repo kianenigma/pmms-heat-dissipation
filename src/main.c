@@ -8,6 +8,7 @@ int main(int argc, char **argv)
     read_parameters(&p, argc, argv);
 
     do_compute(&p, &r);
+//    do_compute_seq(&p, &r);
 
     report_results(&p, &r);
 

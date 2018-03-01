@@ -60,8 +60,9 @@ static void do_copy(size_t h, size_t w,
     }
 }
 
-void do_compute(const struct parameters* p, struct results *r)
+void do_compute_seq(const struct parameters* p, struct results *r)
 {
+  printf("Running Sequential\n");
     size_t i, j;
 
     /* alias input parameters */
@@ -101,9 +102,6 @@ void do_compute(const struct parameters* p, struct results *r)
     double (*restrict src)[h][w] = g2;
     double (*restrict dst)[h][w] = g1;
 
-    /* omp initial logs */
-    printf("OMP :: max threads of systems %d | will use: %d\n", omp_get_max_threads(), p->nthreads);
-
     gettimeofday(&before, NULL);
     for (iter = 1; iter <= p->maxiter; ++iter)
     {
@@ -116,11 +114,6 @@ void do_compute(const struct parameters* p, struct results *r)
         do_copy(h, w, src);
 
         /* compute */
-#pragma omp parallel for \
-        private(i, j)\
-        schedule(static)\
-        reduction(max: maxdiff)\
-        num_threads(p->nthreads)
         for (i = 1; i < h - 1; ++i) {
             for (j = 1; j < w - 1; ++j)
             {
