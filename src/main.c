@@ -10,6 +10,7 @@ int main(int argc, char **argv)
     do_compute(&p, &r);
 //    do_compute_seq(&p, &r);
 
+
     report_results(&p, &r);
 
     return 0;
