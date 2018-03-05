@@ -13,18 +13,21 @@ static const double c_cdiag = 0.25 / (M_SQRT2 + 1.0);
 
 pthread_barrier_t barrier;
 
+// TODO: this is doing one iteration less than expected.
+// TODO: diff seems to be slightly undeterministic in some cases
+// TODO: parameter passing of restrict pointer uses casting. This might disable optimization. check it.
 typedef struct thread_params{
     int start_idx;
     int end_idx;
     int id;
     double threshold;
     size_t maxiter;
-    double ***src_ptr;
-    double ***dst_ptr;
-    double ***c_ptr;
     double *diff_buffer;
     size_t *iter;
     size_t h, w;
+    double ***src_ptr;
+    double ***dst_ptr;
+    double ***c_ptr;
     struct results* results_ptr;
     const struct parameters* parameters_ptr;
     size_t printreport, period;
@@ -115,9 +118,6 @@ static inline int fill_report(const struct parameters *p, struct results *r, siz
     return (maxdiff >= p->threshold) ? 0 : 1;
 }
 
-
-// TODO: this is doing one iteration less than expected.
-// TODO: diff seems to be slightly undeterministic in some cases
 void *thread_proc(void *p) {
     thread_params *params = (thread_params*)p;
     size_t iter = 0;
