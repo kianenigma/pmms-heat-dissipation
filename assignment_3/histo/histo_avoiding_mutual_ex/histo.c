@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <ctype.h>
 #include "pthread.h"
+#include "getopt.h"
 #include "pthread_barrier.h"
 
 #define PALLET_SIZE 255
@@ -34,6 +36,12 @@ void print_results(struct timeval tv1, struct timeval tv2, unsigned int height, 
            (double) (width*height) / time);
 }
 
+/**
+ * Generates a random image with the dimension given as the parameter
+ * @param HEIGHT
+ * @param WIDTH
+ * @param img
+ */
 void generate_random_image(unsigned int HEIGHT, unsigned int WIDTH, unsigned int (* restrict img)[HEIGHT][WIDTH]) {
     int i, j;
     for (i = 0; i < HEIGHT; i++) {
@@ -44,6 +52,12 @@ void generate_random_image(unsigned int HEIGHT, unsigned int WIDTH, unsigned int
     }
 }
 
+/**
+ * Prints a 2d image
+ * @param HEIGHT
+ * @param WIDTH
+ * @param img
+ */
 void print_image(unsigned int HEIGHT, unsigned int WIDTH, unsigned int (*restrict img)[HEIGHT][WIDTH]) {
     int i, j;
     for (i = 0; i < HEIGHT; i++) {
@@ -54,6 +68,10 @@ void print_image(unsigned int HEIGHT, unsigned int WIDTH, unsigned int (*restric
     }
 }
 
+/**
+ * Prints a 1d array
+ * @param histo
+ */
 void print_histogram(unsigned int (*restrict histo)[PALLET_SIZE]) {
     printf("[");
     for (int i = 0; i < PALLET_SIZE; i++) {
@@ -62,6 +80,13 @@ void print_histogram(unsigned int (*restrict histo)[PALLET_SIZE]) {
     printf("]\n");
 }
 
+/**
+ * Sequential function to compute the histogram. Used as reference value.
+ * @param HEIGHT Height of the image
+ * @param WIDTH Width of the image
+ * @param img pointer to the image buffer
+ * @param histo pointer to the histogram buffer
+ */
 inline void calculate_histo_seq(unsigned int HEIGHT, unsigned int WIDTH,
                          unsigned int (*restrict img)[HEIGHT][WIDTH],
                          unsigned int (*restrict histo)[PALLET_SIZE]) {
@@ -73,7 +98,10 @@ inline void calculate_histo_seq(unsigned int HEIGHT, unsigned int WIDTH,
     }
 }
 
-
+/**
+ * Function executed by all threads.
+ * @param param. Pointer to an struct of type thread_arg
+ */
 void* thread_proc(void *param) {
     thread_args *args = (thread_args*)param;
     unsigned int lb = args->start_idx;
@@ -90,12 +118,47 @@ void* thread_proc(void *param) {
     }
 
 }
+
+/**
+ * Usage: ./histo_avoiding_mutual_ex
+ *
+ * arguments:
+ *      -w      Width of the random image generated
+ *      -h      Height of the random image genereated
+ *      -p      Number of threads used. 
+ */
 int main(int argc, char *argv[]){
-    // TODO: read from command line
     unsigned int WIDTH = 50, HEIGHT = 50, NUM_THREADS = 10;
 
-    struct timeval before, after;
+    int c;
+    while ((c = getopt(argc, argv, "w:h:p:")) != -1) {
+        switch (c) {
+            case 'w':
+                WIDTH = (unsigned int)atoi(optarg);
+                break;
+            case 'h':
+                HEIGHT = (unsigned int)atoi(optarg);
+                break;
+            case 'p':
+                NUM_THREADS = (unsigned int)atoi(optarg);
+                break;
+            case '?':
+                if (optopt == 'w' || optopt == 'h' || optopt == 'p') {
+                    fprintf(stderr, "Option -%c requires an argument.\n", optopt);
+                } else if (isprint(optopt)) {
+                    fprintf(stderr, "Unknown option '-%c'.\n", optopt);
+                } else {
+                    fprintf(stderr, "Unknown option character '\\x%x'.\n", optopt);
+                }
+                return -1;
+            default:
+                return -1;
+        }
+    }
 
+    printf("WIDTH \t-w\t%d\nHEIGHT \t-h\t%d\nNUM_THREADS \t-p\t%d\n", WIDTH, HEIGHT, NUM_THREADS);
+
+    struct timeval before, after;
 
     unsigned int (*restrict img)[HEIGHT][WIDTH] = malloc(HEIGHT * WIDTH * sizeof(unsigned int));
 
@@ -126,14 +189,14 @@ int main(int argc, char *argv[]){
         rows_assigned ++;
     }
     rows_assigned = 0;
-    printf("\nRow Map ::\n");
+    printf("\nRow map ::\n");
     for(int i = 0; i < NUM_THREADS; i++) {
         thread_start_idx[i] = rows_assigned;
         thread_end_idx[i] = rows_assigned + thread_row_count[i];
         rows_assigned += thread_row_count[i];
 
         printf("Thread %d :: %d - > %d [weight=%d]\n", i, thread_start_idx[i], thread_end_idx[i],
-               thread_start_idx[i] - thread_end_idx[i]);
+               thread_end_idx[i]-thread_start_idx[i]);
     }
 
     /* spawn threads */
