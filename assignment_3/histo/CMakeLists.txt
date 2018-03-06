@@ -9,6 +9,7 @@ include_directories(./../../include/)
 set(SOURCE_FILES
         histo_avoiding_mutual_ex/histo.c
         with_mutual_ex/histo_mutex/histo.c
+        with_mutual_ex/histo_atomic/histo.c
         with_mutual_ex/histo_semaphores/histo.c
         )
 

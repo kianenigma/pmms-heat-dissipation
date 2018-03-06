@@ -115,7 +115,7 @@ void *thread_proc(void *param) {
     for (i = 0; i < height; i++) {
         for (j = 0; j < width; j++) {
             unsigned int pix_val = (*img)[i][j];
-            if ( pix_val < ub && pix_val >= lb ) {
+            if (pix_val < ub && pix_val >= lb) {
                 (*histo)[pix_val]++;
             }
         }
