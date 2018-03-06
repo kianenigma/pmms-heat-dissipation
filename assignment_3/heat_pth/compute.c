@@ -6,6 +6,12 @@
 #include "compute.h"
 #include "pthread_barrier.h"
 
+
+// TODO: T(avg) seems to be slightly different
+// TODO: double check pointer castings. This might kill the performance benefit of restrict pointer
+// TODO: see int_fast32_t data type
+
+
 static const double c_cdir = 0.25 * M_SQRT2 / (M_SQRT2 + 1.0);
 static const double c_cdiag = 0.25 / (M_SQRT2 + 1.0);
 
@@ -31,6 +37,10 @@ typedef struct thread_params{
 
 } thread_params;
 
+/**
+ * Utility function to print all attributes of the thread
+ * @param attr the attribute object to be displayed
+ */
 static void display_pthread_attr(pthread_attr_t *attr, char *prefix) {
     int s, i;
     size_t v;
@@ -80,7 +90,9 @@ static void display_pthread_attr(pthread_attr_t *attr, char *prefix) {
     printf("%sStack size          = 0x%zx bytes\n", prefix, v);
 }
 
-/* Does the reduction step and return if the convergence has setteled */
+/**
+ * Print the results
+ */
 static inline int fill_report(const struct parameters *p, struct results *r, size_t h, size_t w,
                               double (*restrict a)[h][w], double (*restrict b)[h][w], size_t iter,
                               struct timeval *before, struct timeval *after) {
@@ -113,9 +125,11 @@ static inline int fill_report(const struct parameters *p, struct results *r, siz
     return (maxdiff >= p->threshold) ? 0 : 1;
 }
 
-
-// TODO: T(avg) seems to be slightly different
-// TODO: use -p insted of NUM_THREADS
+/**
+ * Common function for all threads
+ * @param p a pointer to thread_params struct
+ * @return
+ */
 void *thread_proc(void *p) {
     thread_params *params = (thread_params*)p;
     size_t iter = 0;
