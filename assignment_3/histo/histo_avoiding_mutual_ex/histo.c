@@ -28,12 +28,12 @@ typedef struct thread_args {
 void print_results(struct timeval tv1, struct timeval tv2, unsigned int height, unsigned width, int correct) {
     double time = (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
                   (double) (tv2.tv_sec - tv1.tv_sec);
-    printf("Output \033[32;1m(%s)\033[0m:\n%10s %13s %13s\n ",
-           correct == 0 ? "incorrect" : "correct", " Image size", "Time in s", "Pixels/s");
-    printf("%1d \t%.6e \t%.6e\n",
-           width*height,
+    printf("Output\033[32;1m(%s)\033[0m:\n%10s%14s%14s\n ",
+           correct == 0 ? "incorrect" : "correct", "Image size", "Time in s", "Pixels/s");
+    printf("%12d % .6e  % .6e\n",
+           width * height,
            time,
-           (double) (width*height) / time);
+           (double) (width * height) / time);
 }
 
 /**
@@ -42,11 +42,11 @@ void print_results(struct timeval tv1, struct timeval tv2, unsigned int height, 
  * @param WIDTH
  * @param img
  */
-void generate_random_image(unsigned int HEIGHT, unsigned int WIDTH, unsigned int (* restrict img)[HEIGHT][WIDTH]) {
+void generate_random_image(unsigned int HEIGHT, unsigned int WIDTH, unsigned int (*restrict img)[HEIGHT][WIDTH]) {
     int i, j;
     for (i = 0; i < HEIGHT; i++) {
         for (j = 0; j < WIDTH; j++) {
-            unsigned int pix_value = (unsigned int)rand() % (PALLET_SIZE+1);
+            unsigned int pix_value = (unsigned int) rand() % (PALLET_SIZE + 1);
             (*img)[i][j] = pix_value;
         }
     }
@@ -88,12 +88,12 @@ void print_histogram(unsigned int (*restrict histo)[PALLET_SIZE]) {
  * @param histo pointer to the histogram buffer
  */
 inline void calculate_histo_seq(unsigned int HEIGHT, unsigned int WIDTH,
-                         unsigned int (*restrict img)[HEIGHT][WIDTH],
-                         unsigned int (*restrict histo)[PALLET_SIZE]) {
+                                unsigned int (*restrict img)[HEIGHT][WIDTH],
+                                unsigned int (*restrict histo)[PALLET_SIZE]) {
     int i, j;
     for (i = 0; i < HEIGHT; i++) {
         for (j = 0; j < WIDTH; j++) {
-            (*histo)[(*img)[i][j]] ++;
+            (*histo)[(*img)[i][j]]++;
         }
     }
 }
@@ -102,8 +102,8 @@ inline void calculate_histo_seq(unsigned int HEIGHT, unsigned int WIDTH,
  * Function executed by all threads.
  * @param param. Pointer to an struct of type thread_arg
  */
-void* thread_proc(void *param) {
-    thread_args *args = (thread_args*)param;
+void *thread_proc(void *param) {
+    thread_args *args = (thread_args *) param;
     unsigned int lb = args->start_idx;
     unsigned int ub = args->end_idx;
     unsigned int width = args->width;
@@ -111,9 +111,9 @@ void* thread_proc(void *param) {
     unsigned int (*restrict histo)[args->width] = args->histo;
     unsigned int i, j;
 
-    for (i = lb; i < ub ; i++) {
+    for (i = lb; i < ub; i++) {
         for (j = 0; j < width; j++) {
-            (*histo)[(*img)[i][j]] ++;
+            (*histo)[(*img)[i][j]]++;
         }
     }
 
@@ -125,22 +125,22 @@ void* thread_proc(void *param) {
  * arguments:
  *      -w      Width of the random image generated
  *      -h      Height of the random image genereated
- *      -p      Number of threads used. 
+ *      -p      Number of threads used.
  */
-int main(int argc, char *argv[]){
+int main(int argc, char *argv[]) {
     unsigned int WIDTH = 50, HEIGHT = 50, NUM_THREADS = 10;
 
     int c;
     while ((c = getopt(argc, argv, "w:h:p:")) != -1) {
         switch (c) {
             case 'w':
-                WIDTH = (unsigned int)atoi(optarg);
+                WIDTH = (unsigned int) atoi(optarg);
                 break;
             case 'h':
-                HEIGHT = (unsigned int)atoi(optarg);
+                HEIGHT = (unsigned int) atoi(optarg);
                 break;
             case 'p':
-                NUM_THREADS = (unsigned int)atoi(optarg);
+                NUM_THREADS = (unsigned int) atoi(optarg);
                 break;
             case '?':
                 if (optopt == 'w' || optopt == 'h' || optopt == 'p') {
@@ -169,7 +169,10 @@ int main(int argc, char *argv[]){
     /* common buffer */
     unsigned int (*restrict histo)[PALLET_SIZE] = malloc(PALLET_SIZE * sizeof(unsigned int));
     unsigned int (*restrict histo_ref)[PALLET_SIZE] = malloc(PALLET_SIZE * sizeof(unsigned int));
-    for (int i = 0; i < PALLET_SIZE; i++) { (*histo)[i] = 0; (*histo_ref)[i] = 0; }
+    for (int i = 0; i < PALLET_SIZE; i++) {
+        (*histo)[i] = 0;
+        (*histo_ref)[i] = 0;
+    }
 
     /* calculate and print ref histogram */
     calculate_histo_seq(HEIGHT, WIDTH, img, histo_ref);
@@ -184,19 +187,19 @@ int main(int argc, char *argv[]){
 
     int turn = 0;
     while (rows_assigned < HEIGHT) {
-        thread_row_count[turn%NUM_THREADS]++;
+        thread_row_count[turn % NUM_THREADS]++;
         turn++;
-        rows_assigned ++;
+        rows_assigned++;
     }
     rows_assigned = 0;
     printf("\nRow map ::\n");
-    for(int i = 0; i < NUM_THREADS; i++) {
+    for (int i = 0; i < NUM_THREADS; i++) {
         thread_start_idx[i] = rows_assigned;
         thread_end_idx[i] = rows_assigned + thread_row_count[i];
         rows_assigned += thread_row_count[i];
 
         printf("Thread %d :: %d - > %d [weight=%d]\n", i, thread_start_idx[i], thread_end_idx[i],
-               thread_end_idx[i]-thread_start_idx[i]);
+               thread_end_idx[i] - thread_start_idx[i]);
     }
 
     /* spawn threads */
@@ -216,7 +219,7 @@ int main(int argc, char *argv[]){
         args.histo = histo;
         args.img = img;
 
-        pthread_create(&(_thread_ids[t]), &attr, (void*) thread_proc, &args);
+        pthread_create(&(_thread_ids[t]), &attr, (void *) thread_proc, &args);
         if (t == 0) {
             gettimeofday(&before, NULL);
         }
@@ -230,7 +233,10 @@ int main(int argc, char *argv[]){
 
     int correct = 1;
     for (int h = 0; h < PALLET_SIZE; h++) {
-        if ((*histo)[h] != (*histo_ref)[h]) { correct = 0; break;}
+        if ((*histo)[h] != (*histo_ref)[h]) {
+            correct = 0;
+            break;
+        }
     }
 
     print_results(before, after, HEIGHT, WIDTH, correct);
