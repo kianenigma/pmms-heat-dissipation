@@ -26,7 +26,6 @@ typedef struct thread_params{
     size_t *iter;
     size_t h, w;
     struct results* results_ptr;
-    const struct parameters* parameters_ptr;
     size_t printreport, period;
     struct timeval *before;
 
@@ -116,8 +115,7 @@ static inline int fill_report(const struct parameters *p, struct results *r, siz
 }
 
 
-// TODO: this is doing one iteration less than expected.
-// TODO: diff seems to be slightly undeterministic in some cases
+// TODO: T(avg) seems to be slightly different
 void *thread_proc(void *p) {
     thread_params *params = (thread_params*)p;
     size_t iter = 0;
@@ -147,6 +145,7 @@ void *thread_proc(void *p) {
             (*src)[i][0] = (*src)[i][w-2];
         }
 
+
         /* compute */
         for (i = start_idx; i < end_idx - 1; ++i) {
 
@@ -171,6 +170,7 @@ void *thread_proc(void *p) {
 
         /* write local max diff */
         params->diff_buffer[params->id] = maxdiff;
+
         /* wait for all threads to write local max diff */
         pthread_barrier_wait(&barrier);
 
@@ -190,7 +190,8 @@ void *thread_proc(void *p) {
 
 
         /* thread 0 will print if needed */
-        if ( printreport && params->id == 0 ) {
+        if ( printreport ) {
+            if (params->id == 0)
             if ( iter % period == 0 ) {
                 double tmin = INFINITY, tmax = -INFINITY;
                 double sum = 0.0;
@@ -292,17 +293,18 @@ void do_compute(const struct parameters* p, struct results *r)
         thread_ids[i] = i;
     }
 
+
+
     /* Init barrier and attribute */
     pthread_barrier_init(&barrier, NULL, NUM_THREADS);
     pthread_attr_t attr;
     pthread_attr_init(&attr);
-    pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
+//    pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
 
     printf("\n# Thread attributes:\n");
     display_pthread_attr(&attr, "");
 
     /* Initialize 4 threads with their parameters*/
-
     for (i = 0; i < NUM_THREADS; i++) {
         thread_params* params = &params_array[i];
         params->id = thread_ids[i];
@@ -318,7 +320,6 @@ void do_compute(const struct parameters* p, struct results *r)
         params->diff_buffer = diff_buffer;
         params->iter = &_iter;
         params->results_ptr = r;
-        params->parameters_ptr = p;
         params->printreport = p->printreports;
         params->period = p->period;
         params->before = &before;
@@ -340,6 +341,9 @@ void do_compute(const struct parameters* p, struct results *r)
     }
 
     gettimeofday(&after, NULL);
+
+    /* Do one last swap to get the updates of the last iteration */
+    { void *tmp = src; src = dst; dst = tmp; }
 
     /* report at end in all cases */
     fill_report(p, r, h, w, dst, src, iter, &before, &after);
