@@ -6,8 +6,6 @@
 #include "compute.h"
 #include "pthread_barrier.h"
 
-#define NUM_THREADS 4
-
 static const double c_cdir = 0.25 * M_SQRT2 / (M_SQRT2 + 1.0);
 static const double c_cdiag = 0.25 / (M_SQRT2 + 1.0);
 
@@ -17,6 +15,7 @@ typedef struct thread_params{
     int start_idx;
     int end_idx;
     int id;
+    int *num_threads;
     double threshold;
     size_t maxiter;
     double ***src_ptr;
@@ -116,6 +115,7 @@ static inline int fill_report(const struct parameters *p, struct results *r, siz
 
 
 // TODO: T(avg) seems to be slightly different
+// TODO: use -p insted of NUM_THREADS
 void *thread_proc(void *p) {
     thread_params *params = (thread_params*)p;
     size_t iter = 0;
@@ -176,7 +176,7 @@ void *thread_proc(void *p) {
 
         /* compute global max diff */
         double global_diff = 0.0;
-        for (i = 0; i < NUM_THREADS; i++) {
+        for (i = 0; i < *params->num_threads; i++) {
             if (params->diff_buffer[i] > global_diff) {
                 global_diff = params->diff_buffer[i];
             }
@@ -227,7 +227,8 @@ void *thread_proc(void *p) {
 
 void do_compute(const struct parameters* p, struct results *r)
 {
-    printf("Running Pthread Parallel\n");
+    printf("Running Pthread Parallel %zd threads\n", p->nthreads);
+    int NUM_THREADS = (int)p->nthreads;
     int i, j;
 
     /* alias input parameters */
@@ -268,6 +269,7 @@ void do_compute(const struct parameters* p, struct results *r)
     int thread_ids[NUM_THREADS];
     pthread_t _thread_ids[NUM_THREADS];
 
+    /* Thread argument variables  */
     int rows_per_thread = (int)h / NUM_THREADS;
     int threads_start_idx[NUM_THREADS];
     int threads_end_idx[NUM_THREADS];
@@ -286,13 +288,11 @@ void do_compute(const struct parameters* p, struct results *r)
             threads_start_idx[i] = rows_per_thread*i + 1;
             threads_end_idx[i] = (int)h;
         }
-
-        printf("[Thread %d] :: %d -> %d [weigth=%d]\n", i, threads_start_idx[i], threads_end_idx[i], threads_end_idx[i]-threads_start_idx[i]);
+        printf("[Thread %d] :: %d -> %d [weigth=%d]\n", i, threads_start_idx[i], threads_end_idx[i], threads_end_idx[i]-threads_start_idx[i]-1);
 
         // assign id of the thread.
         thread_ids[i] = i;
     }
-
 
 
     /* Init barrier and attribute */
@@ -319,6 +319,7 @@ void do_compute(const struct parameters* p, struct results *r)
         params->w = w;
         params->diff_buffer = diff_buffer;
         params->iter = &_iter;
+        params->num_threads = &NUM_THREADS;
         params->results_ptr = r;
         params->printreport = p->printreports;
         params->period = p->period;
