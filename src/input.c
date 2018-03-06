@@ -84,7 +84,7 @@ void read_parameters(struct parameters* p, int argc, char **argv)
     p->io_tmin = 0.0;
     p->io_tmax = 100.0;
     p->nthreads = 1;
-    p->printreports = 0;
+    p->printreports = 1;
     conductivity_fname = "./../../images/pat1_100x150.pgm";
     tinit_fname = "./../../images/pat1_100x150.pgm";
 

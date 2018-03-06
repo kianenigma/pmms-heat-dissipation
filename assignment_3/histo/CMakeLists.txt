@@ -7,6 +7,9 @@ set (CMAKE_C_FLAGS "-O2 -lpthread -std=c99")
 include_directories(./../../include/)
 
 set(SOURCE_FILES
-        histo_avoiding_mutual_ex/histo.c)
+        histo_avoiding_mutual_ex/histo.c
+        with_mutual_ex/histo_mutex/histo.c
+        with_mutual_ex/histo_semaphores/histo.c
+        )
 
 add_executable(histo ${SOURCE_FILES})

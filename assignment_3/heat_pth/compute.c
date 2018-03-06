@@ -16,6 +16,7 @@ pthread_barrier_t barrier;
 // TODO: this is doing one iteration less than expected.
 // TODO: diff seems to be slightly undeterministic in some cases
 // TODO: parameter passing of restrict pointer uses casting. This might disable optimization. check it.
+// TODO: theoretically, we still need two barriers
 typedef struct thread_params{
     int start_idx;
     int end_idx;

@@ -107,13 +107,17 @@ void *thread_proc(void *param) {
     unsigned int lb = args->start_idx;
     unsigned int ub = args->end_idx;
     unsigned int width = args->width;
+    unsigned int height = args->height;
     unsigned int (*restrict img)[args->height][args->width] = args->img;
     unsigned int (*restrict histo)[args->width] = args->histo;
     unsigned int i, j;
 
-    for (i = lb; i < ub; i++) {
+    for (i = 0; i < height; i++) {
         for (j = 0; j < width; j++) {
-            (*histo)[(*img)[i][j]]++;
+            unsigned int pix_val = (*img)[i][j];
+            if ( pix_val < ub && pix_val >= lb ) {
+                (*histo)[pix_val]++;
+            }
         }
     }
 }
@@ -177,7 +181,7 @@ int main(int argc, char *argv[]) {
     calculate_histo_seq(HEIGHT, WIDTH, img, histo_ref);
 
     /* divide the matrix */
-    unsigned int rows_assigned = 0;
+    unsigned int colors_assigned = 0;
     unsigned int thread_row_count[NUM_THREADS];
     for (int i = 0; i < NUM_THREADS; i++) thread_row_count[i] = 0;
 
@@ -185,17 +189,17 @@ int main(int argc, char *argv[]) {
     unsigned int thread_end_idx[NUM_THREADS];
 
     int turn = 0;
-    while (rows_assigned < HEIGHT) {
+    while (colors_assigned < PALLET_SIZE) {
         thread_row_count[turn % NUM_THREADS]++;
         turn++;
-        rows_assigned++;
+        colors_assigned++;
     }
-    rows_assigned = 0;
+    colors_assigned = 0;
     printf("\nRow map ::\n");
     for (int i = 0; i < NUM_THREADS; i++) {
-        thread_start_idx[i] = rows_assigned;
-        thread_end_idx[i] = rows_assigned + thread_row_count[i];
-        rows_assigned += thread_row_count[i];
+        thread_start_idx[i] = colors_assigned;
+        thread_end_idx[i] = colors_assigned + thread_row_count[i];
+        colors_assigned += thread_row_count[i];
 
         printf("Thread %d :: %d - > %d [weight=%d]\n", i, thread_start_idx[i], thread_end_idx[i],
                thread_end_idx[i] - thread_start_idx[i]);
@@ -215,6 +219,7 @@ int main(int argc, char *argv[]) {
         args->start_idx = thread_start_idx[t];
         args->end_idx = thread_end_idx[t];
         args->width = WIDTH;
+        args->height = HEIGHT;
         args->histo = histo;
         args->img = img;
 
