@@ -116,7 +116,6 @@ void *thread_proc(void *param) {
             (*histo)[(*img)[i][j]]++;
         }
     }
-
 }
 
 /**
@@ -211,15 +210,15 @@ int main(int argc, char *argv[]) {
     thread_args thread_args_array[NUM_THREADS];
 
     for (int t = 0; t < NUM_THREADS; t++) {
-        thread_args args = thread_args_array[t];
-        args.start_idx = thread_start_idx[t];
-        args.end_idx = thread_end_idx[t];
-        args.width = WIDTH;
-        args.height = HEIGHT;
-        args.histo = histo;
-        args.img = img;
+        // TODO: if args is not a pointer, the parameters will overlap. Investigate this
+        thread_args *args = &thread_args_array[t];
+        args->start_idx = thread_start_idx[t];
+        args->end_idx = thread_end_idx[t];
+        args->width = WIDTH;
+        args->histo = histo;
+        args->img = img;
 
-        pthread_create(&(_thread_ids[t]), &attr, (void *) thread_proc, &args);
+        pthread_create(&(_thread_ids[t]), &attr, (void *) thread_proc, args);
         if (t == 0) {
             gettimeofday(&before, NULL);
         }
