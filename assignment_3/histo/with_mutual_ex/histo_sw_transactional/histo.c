@@ -7,6 +7,8 @@
 
 #define PALLET_SIZE 255
 
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
 typedef struct thread_args {
     unsigned int start_idx;
     unsigned int end_idx;
@@ -112,15 +114,15 @@ void *thread_proc(void *param) {
 
     for (i = lb; i < ub; i++) {
         for (j = 0; j < width; j++) {
-            __transaction_atomic {
-                (*histo)[(*img)[i][j]]++;
-            };
+            pthread_mutex_lock(&mutex);
+            (*histo)[(*img)[i][j]]++;
+            pthread_mutex_unlock(&mutex);
         }
     }
 }
 
 /**
- * Usage: ./histo_avoiding_mutual_ex
+ * Usage: ./histo_sw_transactional
  *
  * arguments:
  *      -w      Width of the random image generated
@@ -128,7 +130,7 @@ void *thread_proc(void *param) {
  *      -p      Number of threads used.
  */
 int main(int argc, char *argv[]) {
-    unsigned int WIDTH = 50, HEIGHT = 50, NUM_THREADS = 10;
+    unsigned int WIDTH = 500, HEIGHT = 500, NUM_THREADS = 4;
 
     int c;
     while ((c = getopt(argc, argv, "w:h:p:")) != -1) {

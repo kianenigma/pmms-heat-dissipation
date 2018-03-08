@@ -6,10 +6,9 @@
 #include "getopt.h"
 #include "semaphore.h"
 
-sem_t *sem;
-
 #define PALLET_SIZE 255
 
+sem_t sem;
 typedef struct thread_args {
     unsigned int start_idx;
     unsigned int end_idx;
@@ -95,9 +94,7 @@ inline void calculate_histo_seq(unsigned int HEIGHT, unsigned int WIDTH,
     int i, j;
     for (i = 0; i < HEIGHT; i++) {
         for (j = 0; j < WIDTH; j++) {
-            sem_wait(sem);
             (*histo)[(*img)[i][j]]++;
-            sem_post(sem);
         }
     }
 }
@@ -117,13 +114,15 @@ void *thread_proc(void *param) {
 
     for (i = lb; i < ub; i++) {
         for (j = 0; j < width; j++) {
+            sem_wait(&sem);
             (*histo)[(*img)[i][j]]++;
+            sem_post(&sem);
         }
     }
 }
 
 /**
- * Usage: ./histo_avoiding_mutual_ex
+ * Usage: ./histo_semaphores
  *
  * arguments:
  *      -w      Width of the random image generated
@@ -131,7 +130,7 @@ void *thread_proc(void *param) {
  *      -p      Number of threads used.
  */
 int main(int argc, char *argv[]) {
-    unsigned int WIDTH = 50, HEIGHT = 50, NUM_THREADS = 4;
+    unsigned int WIDTH = 500, HEIGHT = 500, NUM_THREADS = 4;
 
     int c;
     while ((c = getopt(argc, argv, "w:h:p:")) != -1) {
@@ -206,15 +205,13 @@ int main(int argc, char *argv[]) {
     }
 
     /* spawn threads */
+    sem_init(&sem, 0, 1);
     pthread_t _thread_ids[NUM_THREADS];
 
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
     thread_args thread_args_array[NUM_THREADS];
-
-    sem_unlink ("pSem");
-    sem = sem_open ("pSem", O_CREAT | O_EXCL, 0644, 1);
 
     for (int t = 0; t < NUM_THREADS; t++) {
         thread_args *args = &thread_args_array[t];
@@ -245,9 +242,6 @@ int main(int argc, char *argv[]) {
     }
 
     print_results(before, after, HEIGHT, WIDTH, correct);
-
-    sem_unlink("pSem");
-    sem_close(sem);
 
     free(img);
     free(histo);

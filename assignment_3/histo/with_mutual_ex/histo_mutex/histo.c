@@ -122,7 +122,7 @@ void *thread_proc(void *param) {
 }
 
 /**
- * Usage: ./histo_avoiding_mutual_ex
+ * Usage: ./histo_mutex
  *
  * arguments:
  *      -w      Width of the random image generated
@@ -130,7 +130,7 @@ void *thread_proc(void *param) {
  *      -p      Number of threads used.
  */
 int main(int argc, char *argv[]) {
-    unsigned int WIDTH = 50, HEIGHT = 50, NUM_THREADS = 10;
+    unsigned int WIDTH = 500, HEIGHT = 500, NUM_THREADS = 4;
 
     int c;
     while ((c = getopt(argc, argv, "w:h:p:")) != -1) {
