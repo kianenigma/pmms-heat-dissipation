@@ -4,7 +4,6 @@
 #include <ctype.h>
 #include "pthread.h"
 #include "getopt.h"
-#include "pthread_barrier.h"
 
 #define PALLET_SIZE 255
 
