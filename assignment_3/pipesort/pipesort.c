@@ -3,27 +3,86 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <pthread.h>
-#include "semaphore.h"
 #include <unistd.h>
+#include <semaphore.h>
+#include "pipesort.h"
 
-int buffer_size;
+// global thread attributes
 pthread_attr_t attr;
+// size of bounded buffer between threads
+int buffer_size = 1;
 int verbose = 1;
 
-typedef enum {INITIAL, COMPARE_NO_THREAD, COMPARE, END} State;
+int main(int argc, char **argv) {
 
-typedef struct Generator_params {
-    int length;
-    pthread_t *threads;
-} Generator_params;
+    int c;
+    int seed = 42;
+    int length = 3;
 
-typedef struct Comparator_params {
-    pthread_t *threads;
-    int *buffer;
-    sem_t *full;
-    sem_t *empty;
-} Comparator_params;
+    while((c = getopt(argc, argv, "l:s:b:v")) != -1) {
+        switch(c) {
+            case 'l':
+                length = atoi(optarg);
+                break;
+            case 's':
+                seed = atoi(optarg);
+                break;
+            case 'b':
+                buffer_size = atoi(optarg);
+                break;
+            case 'v':
+                verbose = 1;
+                break;
+            case '?':
+                if(optopt == 'l' || optopt == 's' || optopt == 'b') {
+                    fprintf(stderr, "Option -%c requires an argument.\n", optopt);
+                }
+                else if(isprint(optopt)) {
+                    fprintf(stderr, "Unknown option '-%c'.\n", optopt);
+                }
+                else {
+                    fprintf(stderr, "Unknown option character '\\x%x'.\n", optopt);
+                }
+                return -1;
+            default:
+                return -1;
+        }
+    }
 
+    // Seed so that we can always reproduce the same (pseudo) random numbers
+    srand(seed);
+
+    // save all threads dynamically to this vector -> join on all of them
+    pthread_t *threads = malloc(sizeof(pthread_t) * (length+2)); // generator + length * comparator + output
+
+    // initialize thread attributes
+    pthread_attr_init(&attr);
+    pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
+
+    // prepare generator thread parameters
+    Generator_params params;
+    params.length = length;
+    params.threads = threads+1;
+
+    // start pipe sort
+    pthread_create(threads, &attr, generator, &params);
+
+    // join all threads (generator, comparators and output)
+    for(int i = 0; i < length+2; i++){
+        pthread_join(threads[i], NULL);
+    }
+
+    printf("Parameters: -b %i -l %i -s %i\n", buffer_size, length, seed);
+
+    free(threads);
+}
+
+/**
+ * Routine for an output thread.
+ * Receives numbers and prints them to standard out.
+ *
+ * @param p void pointer to a Comparator_params struct
+ */
 void *output(void *p) {
     // read buffer and semaphores
     Comparator_params *params = (Comparator_params*) p;
@@ -87,6 +146,15 @@ void *output(void *p) {
     sem_destroy(read_empty);
 }
 
+/**
+ *
+ * @param write_buffer
+ * @param write_empty
+ * @param write_full
+ * @param write_in
+ * @param value
+ * @return
+ */
 int send_value(int *write_buffer, sem_t *write_empty, sem_t *write_full, int write_in, int value) {
     sem_wait(write_empty);
     //printf("Com: Put %i in buffer\n", value);
@@ -97,6 +165,12 @@ int send_value(int *write_buffer, sem_t *write_empty, sem_t *write_full, int wri
     return write_in;
 }
 
+/**
+ * Routine for a comparator thread.
+ * Receives numbers and forwards the bigger one to the next comparator thread.
+ *
+ * @param p void pointer to a Comparator_params struct
+ */
 void *comparator(void *p) {
     // read buffer and semaphores
     Comparator_params *params = (Comparator_params*) p;
@@ -114,8 +188,9 @@ void *comparator(void *p) {
     sem_init(&write_full, 0, 0);
     sem_init(&write_empty, 0, buffer_size);
 
-
+    // currently read value
     int read_val;
+    // the internal stored number of the comparator thread
     int stored_number;
     State state = INITIAL;
 
@@ -130,12 +205,20 @@ void *comparator(void *p) {
          * 4 different states for a comparator thread
          *
          * 1. INITIAL
+         *      No number received yet. First number received -> stored_number. Next state: COMPARE_NO_THREAD
          *
          * 2. COMPARE_NO_THREAD
+         *      There's no next thread yet. Depending on the received number there needs to be a comparator thread
+         *      (next state: COMPARE) or if an END symbol is received an output thread created (next state: END).
+         *      The received number/END symbol is then forwarded to the thread.
          *
          * 3. COMPARE
+         *      All numbers received are compared to the stored_number and the lower one is sent to the next comparator
+         *      thread. If an END symbol is received the end symbol and stored number are forwarded (next state: END).
          *
          * 4. END
+         *      All numbers are forwarded to the next thread including the second END signal.
+         *      Then the thread terminates.
          */
         if (state == INITIAL) {
             stored_number = read_val;
@@ -212,6 +295,12 @@ void *comparator(void *p) {
     sem_destroy(read_empty);
 }
 
+/**
+ * Routine for a generator thread.
+ * Generates length random numbers and passes them to a comparator thread.
+ *
+ * @param p void pointer to a Generator_params struct
+ */
 void *generator(void *p) {
     Generator_params *params = (Generator_params*) p;
     int length = params->length;
@@ -225,7 +314,6 @@ void *generator(void *p) {
     // create semaphores to protect buffer
     sem_t full;
     sem_t empty;
-
     sem_init(&full, 0, 0);
     sem_init(&empty, 0, buffer_size);
 
@@ -253,67 +341,4 @@ void *generator(void *p) {
         next_in = (next_in + 1) % buffer_size;
         sem_post(&full);
     }
-}
-
-
-int main(int argc, char **argv) {
-
-    int c;
-    int seed = 42;
-    int length = 3;
-    buffer_size = 1;
-
-    while((c = getopt(argc, argv, "l:s:b:")) != -1) {
-        switch(c) {
-            case 'l':
-                length = atoi(optarg);
-                break;
-            case 's':
-                seed = atoi(optarg);
-                break;
-            case 'b':
-                buffer_size = atoi(optarg);
-                break;
-            case '?':
-                if(optopt == 'l' || optopt == 's' || optopt == 'b') {
-                    fprintf(stderr, "Option -%c requires an argument.\n", optopt);
-                }
-                else if(isprint(optopt)) {
-                    fprintf(stderr, "Unknown option '-%c'.\n", optopt);
-                }
-                else {
-                    fprintf(stderr, "Unknown option character '\\x%x'.\n", optopt);
-                }
-                return -1;
-            default:
-                return -1;
-        }
-    }
-
-    // Seed so that we can always reproduce the same random numbers
-    srand(seed);
-
-    // save all threads dynamically to this vector
-    pthread_t *threads = malloc(sizeof(pthread_t) * (length+2)); // generator + length * comparator + output
-
-    // initialize thread attributes
-    pthread_attr_init(&attr);
-    pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
-
-    // create generator thread
-    Generator_params params;
-    params.length = length;
-    params.threads = threads+1;
-
-    // start pipe sort
-    pthread_create(threads, &attr, generator, &params);
-
-    // join all threads (generator, comparator and output)
-    for(int i = 0; i < length+2; i++){
-        pthread_join(threads[i], NULL);
-    }
-
-    printf("Parameters: -b %i -l %i -s %i\n", buffer_size, length, seed);
-
-    free(threads);
 }
