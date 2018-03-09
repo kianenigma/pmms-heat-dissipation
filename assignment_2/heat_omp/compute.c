@@ -147,7 +147,7 @@ void do_compute(const struct parameters* p, struct results *r)
 
         if ( maxdiff < p->threshold ) { break; }
 
-        if ( p->printreports ) {
+        if ( p->printreports && iter % p->period == 0 ) {
 
             double tmin = INFINITY, tmax = -INFINITY;
             double sum = 0.0;

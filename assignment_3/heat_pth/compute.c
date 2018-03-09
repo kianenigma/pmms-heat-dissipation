@@ -24,16 +24,13 @@ typedef struct thread_params{
     int copy_end_idx;
     int id;
     int *num_threads;
-    double threshold;
-    size_t maxiter;
     double *diff_buffer;
     size_t *iter;
-    size_t h, w;
     double ***src_ptr;
     double ***dst_ptr;
     double ***c_ptr;
     struct results* results_ptr;
-    size_t printreport, period;
+    struct parameters* parameters_ptr;
     struct timeval *before;
 
 
@@ -170,19 +167,22 @@ void *thread_proc(void *p) {
     thread_params *params = (thread_params*)p;
     size_t iter = 0;
     int i, j;
-    double threshold = params->threshold;
-    size_t maxiter = params->maxiter;
-    size_t w = params->w;
-    size_t h = params->h;
-    size_t printreport = params->printreport, period = params->period;
+    double threshold = params->parameters_ptr->threshold;
+    size_t maxiter = params->parameters_ptr->maxiter;
+    size_t w = params->parameters_ptr->M + 2;
+    size_t h = params->parameters_ptr->N + 2;
+    size_t printreport = params->parameters_ptr->printreports, period = params->parameters_ptr->period;
     int start_idx = params->start_idx;
     int end_idx = params->end_idx;
+    struct timeval *before = params->before;
 
     double (*restrict src)[h][w] = params->src_ptr;
     double (*restrict dst)[h][w] = params->dst_ptr;
     double (*restrict c)[h][w] = params->c_ptr;
 
     for (iter = 1; iter <= maxiter; ++iter) {
+
+        /* note that this is pointer swap (local pointer that have shared values), each thread must do this */
         { void *tmp = src; src = dst; dst = tmp; }
 
         /* Copy last and first column */
@@ -262,16 +262,14 @@ void *thread_proc(void *p) {
                     params->results_ptr->tmax = tmax;
                     params->results_ptr->tavg = sum / ((w-2) * (h-2));
 
-                    params->results_ptr->time = (double)(after.tv_sec - params->before->tv_sec) +
-                                                (double)(after.tv_usec - params->before->tv_usec) / 1e6;
+                    params->results_ptr->time = (double)(after.tv_sec - before->tv_sec) +
+                                                (double)(after.tv_usec - before->tv_usec) / 1e6;
 
-                    report_results(p, params->results_ptr);
+                    report_results(params->parameters_ptr, params->results_ptr);
                 }
             }
         }
     }
-    if (params->id == 0) {*params->iter = iter;}
-
 }
 
 void do_compute(const struct parameters* p, struct results *r)
@@ -387,19 +385,15 @@ void do_compute(const struct parameters* p, struct results *r)
         params->end_idx = threads_end_idx[i];
         params->copy_start_idx = thread_cp_start_idx[i];
         params->copy_end_idx = thread_cp_end_idx[i];
-        params->maxiter = p->maxiter;
-        params->threshold = p->threshold;
         params->src_ptr = (double***)src;
         params->dst_ptr = (double***)dst;
         params->c_ptr = (double***)c;
-        params->h = h;
-        params->w = w;
         params->diff_buffer = diff_buffer;
         params->iter = &_iter;
         params->num_threads = &NUM_THREADS;
         params->results_ptr = r;
-        params->printreport = p->printreports;
-        params->period = p->period;
+        params->parameters_ptr = p;
+
         params->before = &before;
 
 
@@ -419,6 +413,8 @@ void do_compute(const struct parameters* p, struct results *r)
     }
 
     gettimeofday(&after, NULL);
+
+    if (iter == 0) { iter = p->maxiter; }
 
     /* Do one last swap to get the updates of the last iteration */
     { void *tmp = src; src = dst; dst = tmp; }
