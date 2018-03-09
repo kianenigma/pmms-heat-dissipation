@@ -5,6 +5,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <semaphore.h>
+#include <sys/time.h>
 #include "pipesort.h"
 
 // global thread attributes
@@ -18,6 +19,7 @@ int main(int argc, char **argv) {
     int c;
     int seed = 42;
     int length = 3;
+    struct timeval tv1, tv2;
 
     while((c = getopt(argc, argv, "l:s:b:v")) != -1) {
         switch(c) {
@@ -64,6 +66,7 @@ int main(int argc, char **argv) {
     params.length = length;
     params.threads = threads+1;
 
+    gettimeofday(&tv1, NULL);
     // start pipe sort
     pthread_create(threads, &attr, generator, &params);
 
@@ -71,8 +74,13 @@ int main(int argc, char **argv) {
     for(int i = 0; i < length+2; i++){
         pthread_join(threads[i], NULL);
     }
-
+    gettimeofday(&tv2, NULL);
     printf("Parameters: -b %i -l %i -s %i\n", buffer_size, length, seed);
+
+    // calculate time needed
+    double time = (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
+              (double) (tv2.tv_sec - tv1.tv_sec);
+    printf("Time: %.6e\n", time);
 
     free(threads);
 }
