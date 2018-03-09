@@ -8,10 +8,9 @@
 
 #define M_SQRT2 1.41421356237309504880
 
-// TODO: T(avg) seems to be slightly different
-// TODO: double check pointer castings. This might kill the performance benefit of restrict pointer
+// TODO: this is doing one iteration less than expected.
+// TODO: parameter passing of restrict pointer uses casting. This might disable optimization. check it.
 // TODO: see int_fast32_t data type
-
 
 static const double c_cdir = 0.25 * M_SQRT2 / (M_SQRT2 + 1.0);
 static const double c_cdiag = 0.25 / (M_SQRT2 + 1.0);
@@ -27,12 +26,12 @@ typedef struct thread_params{
     int *num_threads;
     double threshold;
     size_t maxiter;
-    double ***src_ptr;
-    double ***dst_ptr;
-    double ***c_ptr;
     double *diff_buffer;
     size_t *iter;
     size_t h, w;
+    double ***src_ptr;
+    double ***dst_ptr;
+    double ***c_ptr;
     struct results* results_ptr;
     size_t printreport, period;
     struct timeval *before;
