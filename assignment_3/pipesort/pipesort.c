@@ -144,6 +144,8 @@ void *output(void *p) {
     free(read_buffer);
     sem_destroy(read_full);
     sem_destroy(read_empty);
+    free(read_full);
+    free(read_empty);
 }
 
 /**
@@ -183,10 +185,10 @@ void *comparator(void *p) {
     // write buffer and semaphores
     int *write_buffer = malloc(sizeof(int) * buffer_size);
     int write_in = 0;
-    sem_t write_full;
-    sem_t write_empty;
-    sem_init(&write_full, 0, 0);
-    sem_init(&write_empty, 0, buffer_size);
+    sem_t *write_full = malloc(sizeof(sem_t));
+    sem_t *write_empty = malloc(sizeof(sem_t));
+    sem_init(write_full, 0, 0);
+    sem_init(write_empty, 0, buffer_size);
 
     // currently read value
     int read_val;
@@ -228,8 +230,8 @@ void *comparator(void *p) {
             // prepare thread params
             Comparator_params params_next;
             params_next.threads = threads+1;
-            params_next.empty = &write_empty;
-            params_next.full = &write_full;
+            params_next.empty = write_empty;
+            params_next.full = write_full;
             params_next.buffer = write_buffer;
 
             if (read_val == -1) {
@@ -240,9 +242,9 @@ void *comparator(void *p) {
                 state = END;
 
                 // send end signal
-                write_in = send_value(write_buffer, &write_empty, &write_full, write_in, read_val);
+                write_in = send_value(write_buffer, write_empty, write_full, write_in, read_val);
                 // send stored_number
-                write_in = send_value(write_buffer, &write_empty, &write_full, write_in, stored_number);
+                write_in = send_value(write_buffer, write_empty, write_full, write_in, stored_number);
                 continue;
             }
 
@@ -254,9 +256,9 @@ void *comparator(void *p) {
 
             // compare stored_number with read_val -> send smaller to next thread
             if (stored_number > read_val) {
-                write_in = send_value(write_buffer, &write_empty, &write_full, write_in, read_val);
+                write_in = send_value(write_buffer, write_empty, write_full, write_in, read_val);
             } else {
-                write_in = send_value(write_buffer, &write_empty, &write_full, write_in, stored_number);
+                write_in = send_value(write_buffer, write_empty, write_full, write_in, stored_number);
                 stored_number = read_val;
             }
         } else if(state == COMPARE) {
@@ -265,22 +267,22 @@ void *comparator(void *p) {
                 state = END;
 
                 // send end signal
-                write_in = send_value(write_buffer, &write_empty, &write_full, write_in, read_val);
+                write_in = send_value(write_buffer, write_empty, write_full, write_in, read_val);
                 // send stored_number
-                write_in = send_value(write_buffer, &write_empty, &write_full, write_in, stored_number);
+                write_in = send_value(write_buffer, write_empty, write_full, write_in, stored_number);
                 continue;
             }
 
             // compare stored_number with read_val -> send smaller to next thread
             if (stored_number > read_val) {
-                write_in = send_value(write_buffer, &write_empty, &write_full, write_in, read_val);
+                write_in = send_value(write_buffer, write_empty, write_full, write_in, read_val);
             } else {
-                write_in = send_value(write_buffer, &write_empty, &write_full, write_in, stored_number);
+                write_in = send_value(write_buffer, write_empty, write_full, write_in, stored_number);
                 stored_number = read_val;
             }
         } else if (state == END) {
             // send every received number including second END, then terminate
-            write_in = send_value(write_buffer, &write_empty, &write_full, write_in, read_val);
+            write_in = send_value(write_buffer, write_empty, write_full, write_in, read_val);
 
             if(read_val == -1) {
                 //printf("Received second end signal %i\n", read_val);
@@ -293,6 +295,8 @@ void *comparator(void *p) {
     free(read_buffer);
     sem_destroy(read_full);
     sem_destroy(read_empty);
+    free(read_full);
+    free(read_empty);
 }
 
 /**
@@ -312,33 +316,33 @@ void *generator(void *p) {
     int next_in = 0;
 
     // create semaphores to protect buffer
-    sem_t full;
-    sem_t empty;
-    sem_init(&full, 0, 0);
-    sem_init(&empty, 0, buffer_size);
+    sem_t *full = malloc(sizeof(sem_t));
+    sem_t *empty = malloc(sizeof(sem_t));
+    sem_init(full, 0, 0);
+    sem_init(empty, 0, buffer_size);
 
     // create first comparator thread
     Comparator_params params_next;
     params_next.threads = threads+1;
-    params_next.empty = &empty;
-    params_next.full = &full;
+    params_next.empty = empty;
+    params_next.full = full;
     params_next.buffer = buffer;
     pthread_create(threads, &attr, comparator, &params_next);
 
     // send number by number into pipeline
     for(int i = 0; i < length; i++) {
-        sem_wait(&empty);
+        sem_wait(empty);
         //printf("Gen: Put %i in buffer\n", vector[i]);
         buffer[next_in] = rand();
         next_in = (next_in + 1) % buffer_size;
-        sem_post(&full);
+        sem_post(full);
     }
 
     // send 2 END symbols
     for(int i = 0; i < 2; i++) {
-        sem_wait(&empty);
+        sem_wait(empty);
         buffer[next_in] = -1;
         next_in = (next_in + 1) % buffer_size;
-        sem_post(&full);
+        sem_post(full);
     }
 }
