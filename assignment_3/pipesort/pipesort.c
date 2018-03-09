@@ -10,9 +10,11 @@
 
 // global thread attributes
 pthread_attr_t attr;
+pthread_t thread;
 // size of bounded buffer between threads
 int buffer_size = 1;
-int verbose = 1;
+int verbose = 0;
+sem_t sorted;
 
 int main(int argc, char **argv) {
 
@@ -54,26 +56,25 @@ int main(int argc, char **argv) {
     // Seed so that we can always reproduce the same (pseudo) random numbers
     srand(seed);
 
-    // save all threads dynamically to this vector -> join on all of them
-    pthread_t *threads = malloc(sizeof(pthread_t) * (length+2)); // generator + length * comparator + output
+    // init semaphore so that main thread can wait on it
+    sem_init(&sorted, 0, 0);
 
     // initialize thread attributes
     pthread_attr_init(&attr);
     pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
     // prepare generator thread parameters
     Generator_params params;
     params.length = length;
-    params.threads = threads+1;
 
     gettimeofday(&tv1, NULL);
     // start pipe sort
-    pthread_create(threads, &attr, generator, &params);
+    pthread_create(&thread, &attr, generator, &params);
 
-    // join all threads (generator, comparators and output)
-    for(int i = 0; i < length+2; i++){
-        pthread_join(threads[i], NULL);
-    }
+    // wait until sorting is finished
+    sem_wait(&sorted);
+
     gettimeofday(&tv2, NULL);
     printf("Parameters: -b %i -l %i -s %i\n", buffer_size, length, seed);
 
@@ -81,8 +82,6 @@ int main(int argc, char **argv) {
     double time = (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
               (double) (tv2.tv_sec - tv1.tv_sec);
     printf("Time: %.6e\n", time);
-
-    free(threads);
 }
 
 /**
@@ -94,7 +93,6 @@ int main(int argc, char **argv) {
 void *output(void *p) {
     // read buffer and semaphores
     Comparator_params *params = (Comparator_params*) p;
-    pthread_t *threads = params->threads;
     sem_t *read_full = params->full;
     sem_t *read_empty = params->empty;
     int *read_buffer = params->buffer;
@@ -154,6 +152,9 @@ void *output(void *p) {
     sem_destroy(read_empty);
     free(read_full);
     free(read_empty);
+
+    // let master know that we are done
+    sem_post(&sorted);
 }
 
 /**
@@ -184,7 +185,6 @@ int send_value(int *write_buffer, sem_t *write_empty, sem_t *write_full, int wri
 void *comparator(void *p) {
     // read buffer and semaphores
     Comparator_params *params = (Comparator_params*) p;
-    pthread_t *threads = params->threads;
     sem_t *read_full = params->full;
     sem_t *read_empty = params->empty;
     int *read_buffer = params->buffer;
@@ -237,14 +237,13 @@ void *comparator(void *p) {
         } else if(state == COMPARE_NO_THREAD) {
             // prepare thread params
             Comparator_params params_next;
-            params_next.threads = threads+1;
             params_next.empty = write_empty;
             params_next.full = write_full;
             params_next.buffer = write_buffer;
 
             if (read_val == -1) {
                 // create output thread
-                pthread_create(threads, &attr, output, &params_next);
+                pthread_create(&thread, &attr, output, &params_next);
 
                 // advance state to END
                 state = END;
@@ -257,7 +256,7 @@ void *comparator(void *p) {
             }
 
             // create comparator thread
-            pthread_create(threads, &attr, comparator, &params_next);
+            pthread_create(&thread, &attr, comparator, &params_next);
 
             // advance state to COMPARE
             state = COMPARE;
@@ -316,7 +315,6 @@ void *comparator(void *p) {
 void *generator(void *p) {
     Generator_params *params = (Generator_params*) p;
     int length = params->length;
-    pthread_t *threads = params->threads;
 
     // create buffer
     int *buffer = malloc(sizeof(int) * buffer_size);
@@ -331,16 +329,15 @@ void *generator(void *p) {
 
     // create first comparator thread
     Comparator_params params_next;
-    params_next.threads = threads+1;
     params_next.empty = empty;
     params_next.full = full;
     params_next.buffer = buffer;
-    pthread_create(threads, &attr, comparator, &params_next);
+    pthread_create(&thread, &attr, comparator, &params_next);
 
     // send number by number into pipeline
     for(int i = 0; i < length; i++) {
         sem_wait(empty);
-        //printf("Gen: Put %i in buffer\n", vector[i]);
+        //printf("Gen: Put %i in buffer\n", i);
         buffer[next_in] = rand();
         next_in = (next_in + 1) % buffer_size;
         sem_post(full);

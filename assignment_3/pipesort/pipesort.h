@@ -6,11 +6,9 @@ typedef enum {INITIAL, COMPARE_NO_THREAD, COMPARE, END} State;
 
 typedef struct Generator_params {
     int length;
-    pthread_t *threads;
 } Generator_params;
 
 typedef struct Comparator_params {
-    pthread_t *threads;
     int *buffer;
     sem_t *full;
     sem_t *empty;
