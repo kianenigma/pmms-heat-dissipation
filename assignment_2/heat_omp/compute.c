@@ -48,11 +48,11 @@ static inline int fill_report(const struct parameters *p, struct results *r,
     return (maxdiff >= p->threshold) ? 0 : 1;
 }
 
+
 static void do_copy(size_t h, size_t w,
                     double (*restrict g)[h][w])
 {
     size_t i;
-
     /* copy left and right column to opposite border */
     for (i = 0; i < h; ++i) {
         (*g)[i][w-1] = (*g)[i][1];
@@ -107,6 +107,7 @@ void do_compute(const struct parameters* p, struct results *r)
     gettimeofday(&before, NULL);
     for (iter = 1; iter <= p->maxiter; ++iter)
     {
+
         double maxdiff = 0.0;
 
         /* swap source and destination */
@@ -124,6 +125,7 @@ void do_compute(const struct parameters* p, struct results *r)
         for (i = 1; i < h - 1; ++i) {
             for (j = 1; j < w - 1; ++j)
             {
+                
                 double w = (*c)[i][j];
                 double restw = 1.0 - w;
                 double v, v_old;
@@ -138,29 +140,30 @@ void do_compute(const struct parameters* p, struct results *r)
                 double diff = fabs(v - v_old);
                 if (diff > maxdiff) maxdiff = diff;
                 (*dst)[i][j] = v;
+
             }
         }
-        
+
+
         if ( maxdiff < p->threshold ) { break; }
 
         if ( p->printreports ) {
+
             double tmin = INFINITY, tmax = -INFINITY;
             double sum = 0.0;
             struct timeval after;
 
             /* We have said that the final reduction does not need to be included. */
             gettimeofday(&after, NULL);
-
             for (i = 1; i < h - 1; ++i) {
                 for (j = 1; j < w - 1; ++j) {
                     double v = (*dst)[i][j];
-                    double v_old = (*src)[i][j];
-
                     sum += v;
                     if (tmin > v) tmin = v;
                     if (tmax < v) tmax = v;
                 }
             }
+
 
             r->niter = iter;
             r->maxdiff = maxdiff;

@@ -6,6 +6,7 @@
 #include "compute.h"
 #include "pthread_barrier.h"
 
+#define M_SQRT2 1.41421356237309504880
 
 // TODO: T(avg) seems to be slightly different
 // TODO: double check pointer castings. This might kill the performance benefit of restrict pointer
@@ -20,6 +21,8 @@ pthread_barrier_t barrier;
 typedef struct thread_params{
     int start_idx;
     int end_idx;
+    int copy_start_idx;
+    int copy_end_idx;
     int id;
     int *num_threads;
     double threshold;
@@ -36,6 +39,40 @@ typedef struct thread_params{
 
 
 } thread_params;
+
+
+/**
+ * Utility function to print a summary of the matrix
+ */
+static void print_matrix(size_t h, size_t w, double (*restrict a)[h][w]) {
+    int i, j;
+    printf("######################\n");
+    i = 0;
+    printf("%lf\t%lf\t%lf ...  %lf\t%lf\t%lf\n", (*a)[i][0], (*a)[i][1], (*a)[i][2], (*a)[i][w-3], (*a)[i][w-2], (*a)[i][w-1]);
+    i = 1;
+    printf("%lf\t%lf\t%lf ...  %lf\t%lf\t%lf\n", (*a)[i][0], (*a)[i][1], (*a)[i][2], (*a)[i][w-3], (*a)[i][w-2], (*a)[i][w-1]);
+    i = 2;
+    printf("%lf\t%lf\t%lf ...  %lf\t%lf\t%lf\n", (*a)[i][0], (*a)[i][1], (*a)[i][2], (*a)[i][w-3], (*a)[i][w-2], (*a)[i][w-1]);
+    i = 3;
+    printf("%lf\t%lf\t%lf ...  %lf\t%lf\t%lf\n", (*a)[i][0], (*a)[i][1], (*a)[i][2], (*a)[i][w-3], (*a)[i][w-2], (*a)[i][w-1]);
+    i = 4;
+    printf("%lf\t%lf\t%lf ...  %lf\t%lf\t%lf\n", (*a)[i][0], (*a)[i][1], (*a)[i][2], (*a)[i][w-3], (*a)[i][w-2], (*a)[i][w-1]);
+    printf("....\n");
+    printf("....\n");
+    printf("....\n");
+    printf("....\n");
+    i = h-5;
+    printf("%lf\t%lf\t%lf ...  %lf\t%lf\t%lf\n", (*a)[i][0], (*a)[i][1], (*a)[i][2], (*a)[i][w-3], (*a)[i][w-2], (*a)[i][w-1]);
+    i = h-4;
+    printf("%lf\t%lf\t%lf ...  %lf\t%lf\t%lf\n", (*a)[i][0], (*a)[i][1], (*a)[i][2], (*a)[i][w-3], (*a)[i][w-2], (*a)[i][w-1]);
+    i = h-3;
+    printf("%lf\t%lf\t%lf ...  %lf\t%lf\t%lf\n", (*a)[i][0], (*a)[i][1], (*a)[i][2], (*a)[i][w-3], (*a)[i][w-2], (*a)[i][w-1]);
+    i = h-2;
+    printf("%lf\t%lf\t%lf ...  %lf\t%lf\t%lf\n", (*a)[i][0], (*a)[i][1], (*a)[i][2], (*a)[i][w-3], (*a)[i][w-2], (*a)[i][w-1]);
+    i = h-1;
+    printf("%lf\t%lf\t%lf ...  %lf\t%lf\t%lf\n", (*a)[i][0], (*a)[i][1], (*a)[i][2], (*a)[i][w-3], (*a)[i][w-2], (*a)[i][w-1]);
+    printf("######################\n");
+}
 
 /**
  * Utility function to print all attributes of the thread
@@ -146,23 +183,21 @@ void *thread_proc(void *p) {
     double (*restrict dst)[h][w] = params->dst_ptr;
     double (*restrict c)[h][w] = params->c_ptr;
 
-    for (iter = 1; iter <= maxiter; ++iter)
-    {
-        double maxdiff = 0.0;
-
-        /* swap source and destination */
+    for (iter = 1; iter <= maxiter; ++iter) {
         { void *tmp = src; src = dst; dst = tmp; }
 
-        /* initialize halo on source */
-        for (i = start_idx; i < end_idx - 1; ++i) {
+        /* Copy last and first column */
+        for (i = params->copy_start_idx; i < params->copy_end_idx ; i++) {
             (*src)[i][w-1] = (*src)[i][1];
             (*src)[i][0] = (*src)[i][w-2];
         }
 
+        pthread_barrier_wait(&barrier);
+
+        double maxdiff = 0.0;
 
         /* compute */
-        for (i = start_idx; i < end_idx - 1; ++i) {
-
+        for (i = start_idx; i < end_idx  ; ++i) {
             for (j = 1; j < w - 1; ++j)
             {
                 double w = (*c)[i][j];
@@ -198,44 +233,45 @@ void *thread_proc(void *p) {
 
         if (global_diff < threshold) {
             // break
-            if (params->id == 0) {*params->iter = iter;}
+            if (params->id == 0) {*params->iter = iter; }
             break;
         }
 
 
         /* thread 0 will print if needed */
         if ( printreport ) {
-            if (params->id == 0)
-            if ( iter % period == 0 ) {
-                double tmin = INFINITY, tmax = -INFINITY;
-                double sum = 0.0;
-                struct timeval after;
+            if (params->id == 0) {
+                if ( iter % period == 0 ) {
+                    double tmin = INFINITY, tmax = -INFINITY;
+                    double sum = 0.0;
+                    struct timeval after;
 
-                /* We have said that the final reduction does not need to be included. */
-                gettimeofday(&after, NULL);
-
-                for (i = 1; i < h - 1; ++i) {
-                    for (j = 1; j < w - 1; ++j) {
-                        double v = (*dst)[i][j];
-                        sum += v;
-                        if (tmin > v) tmin = v;
-                        if (tmax < v) tmax = v;
+                    /* We have said that the final reduction does not need to be included. */
+                    gettimeofday(&after, NULL);
+                    for (i = 1; i < h - 1 ; ++i) {
+                        for (j = 1; j < w - 1 ; ++j) {
+                            double v = (*dst)[i][j];
+                            sum += v;
+                            if (tmin > v) tmin = v;
+                            if (tmax < v) tmax = v;
+                        }
                     }
+
+                    params->results_ptr->niter = iter;
+                    params->results_ptr->maxdiff = global_diff;
+                    params->results_ptr->tmin = tmin;
+                    params->results_ptr->tmax = tmax;
+                    params->results_ptr->tavg = sum / ((w-2) * (h-2));
+
+                    params->results_ptr->time = (double)(after.tv_sec - params->before->tv_sec) +
+                                                (double)(after.tv_usec - params->before->tv_usec) / 1e6;
+
+                    report_results(p, params->results_ptr);
                 }
-
-                params->results_ptr->niter = iter;
-                params->results_ptr->maxdiff = global_diff;
-                params->results_ptr->tmin = tmin;
-                params->results_ptr->tmax = tmax;
-                params->results_ptr->tavg = sum / ((w-2) * (h-2));
-
-                params->results_ptr->time = (double)(after.tv_sec - params->before->tv_sec) +
-                                            (double)(after.tv_usec - params->before->tv_usec) / 1e6;
-
-                report_results(p, params->results_ptr);
             }
         }
     }
+    if (params->id == 0) {*params->iter = iter;}
 
 }
 
@@ -265,8 +301,14 @@ void do_compute(const struct parameters* p, struct results *r)
         for (j = 1; j < w - 1; ++j)
         {
             (*g1)[i][j] = (*tinit)[i-1][j-1];
+            (*g2)[i][j] = (*tinit)[i-1][j-1];
             (*c)[i][j] = (*cinit)[i-1][j-1];
         }
+
+    for (i = 0; i < h ; ++i) {
+        (*g1)[i][w-1] = (*g1)[i][1];
+        (*g1)[i][0] = (*g1)[i][w-2];
+    }
 
     /* smear outermost row to border */
     for (j = 1; j < w-1; ++j) {
@@ -274,36 +316,56 @@ void do_compute(const struct parameters* p, struct results *r)
         (*g1)[h-1][j] = (*g2)[h-1][j] = (*g1)[h-2][j];
     }
 
+
     /* compute */
-    size_t iter = 0;
+    size_t iter = 1;
     double (*restrict src)[h][w] = g2;
     double (*restrict dst)[h][w] = g1;
+
 
     /* Thread id array */
     int thread_ids[NUM_THREADS];
     pthread_t _thread_ids[NUM_THREADS];
 
     /* Thread argument variables  */
-    int rows_per_thread = (int)h / NUM_THREADS;
     int threads_start_idx[NUM_THREADS];
     int threads_end_idx[NUM_THREADS];
+    int thread_cp_start_idx[NUM_THREADS];
+    int thread_cp_end_idx[NUM_THREADS];
+
     double *diff_buffer = malloc(NUM_THREADS* sizeof(double));
     size_t _iter = 0;
+
     thread_params params_array[NUM_THREADS];
 
-    printf("\n# Average row per thread %d. Thread Index max:\n", rows_per_thread);
-    for (i = 0; i < NUM_THREADS; i++) {
-        // TODO: this part should do as much as possible to make the rows for each thread balanced.
-        if (i < NUM_THREADS-1) {
-            threads_start_idx[i] = rows_per_thread*i + 1;
-            threads_end_idx[i] = threads_start_idx[i] + rows_per_thread + 1;
-        }
-        else {
-            threads_start_idx[i] = rows_per_thread*i + 1;
-            threads_end_idx[i] = (int)h;
-        }
-        printf("[Thread %d] :: %d -> %d [weigth=%d]\n", i, threads_start_idx[i], threads_end_idx[i], threads_end_idx[i]-threads_start_idx[i]-1);
+    // Split computation/copy space among threads
+    int thread_row_counts[NUM_THREADS];
+    int row_per_thread = p->M / NUM_THREADS;
+    int remainder = p->M - (NUM_THREADS*row_per_thread);
+    for (int t = 0; t < NUM_THREADS; t++) { thread_row_counts[t] = row_per_thread; }
+    int turn = 0;
+    while (remainder != 0 ) {
+        thread_row_counts[turn%NUM_THREADS]++;
+        remainder--;
+        turn++;
+    }
+    int rows_assigned = 0;
+    for (int t = 0; t < NUM_THREADS; t++) {
+        threads_start_idx[t] = 1 + rows_assigned ;
+        threads_end_idx[t] = 1 + rows_assigned + thread_row_counts[t];
 
+        thread_cp_end_idx[t] = threads_end_idx[t];
+        thread_cp_start_idx[t] = threads_start_idx[t];
+
+        rows_assigned += thread_row_counts[t];
+    }
+
+    thread_cp_start_idx[0] = 0;
+    thread_cp_end_idx[NUM_THREADS-1] = h;
+
+
+    for (i = 0; i < NUM_THREADS; i++) {
+        printf("[Thread %d] :: %d -> %d [copy: %d -> %d][weigth=%d]\n", i, threads_start_idx[i], threads_end_idx[i], thread_cp_start_idx[i], thread_cp_end_idx[i], threads_end_idx[i]-threads_start_idx[i]);
         // assign id of the thread.
         thread_ids[i] = i;
     }
@@ -313,7 +375,7 @@ void do_compute(const struct parameters* p, struct results *r)
     pthread_barrier_init(&barrier, NULL, NUM_THREADS);
     pthread_attr_t attr;
     pthread_attr_init(&attr);
-//    pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
+    pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
 
     printf("\n# Thread attributes:\n");
     display_pthread_attr(&attr, "");
@@ -324,6 +386,8 @@ void do_compute(const struct parameters* p, struct results *r)
         params->id = thread_ids[i];
         params->start_idx = threads_start_idx[i];
         params->end_idx = threads_end_idx[i];
+        params->copy_start_idx = thread_cp_start_idx[i];
+        params->copy_end_idx = thread_cp_end_idx[i];
         params->maxiter = p->maxiter;
         params->threshold = p->threshold;
         params->src_ptr = (double***)src;
@@ -351,7 +415,7 @@ void do_compute(const struct parameters* p, struct results *r)
     for (i = 0; i < NUM_THREADS; i++) {
         pthread_join(_thread_ids[i], NULL);
         if (i == 0) {
-            iter = (size_t)*params_array[i].iter;
+            iter = *params_array[i].iter;
         }
     }
 
