@@ -9,6 +9,7 @@
 #define PALLET_SIZE 255
 
 sem_t sem;
+
 typedef struct thread_args {
     unsigned int start_idx;
     unsigned int end_idx;

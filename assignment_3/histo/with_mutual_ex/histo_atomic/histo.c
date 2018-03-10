@@ -7,8 +7,6 @@
 
 #define PALLET_SIZE 255
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
 typedef struct thread_args {
     unsigned int start_idx;
     unsigned int end_idx;

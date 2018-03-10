@@ -7,8 +7,6 @@
 
 #define PALLET_SIZE 255
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
 typedef struct thread_args {
     unsigned int start_idx;
     unsigned int end_idx;
@@ -114,9 +112,9 @@ void *thread_proc(void *param) {
 
     for (i = lb; i < ub; i++) {
         for (j = 0; j < width; j++) {
-            pthread_mutex_lock(&mutex);
-            (*histo)[(*img)[i][j]]++;
-            pthread_mutex_unlock(&mutex);
+            __transaction_atomic {
+                (*histo)[(*img)[i][j]]++;
+           }
         }
     }
 }
