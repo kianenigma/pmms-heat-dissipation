@@ -16,11 +16,21 @@ int buffer_size = 1;
 int verbose = 0;
 sem_t sorted;
 
+/**
+ *
+ * usage: ./pipesort
+ *
+ * arguments:
+ *      -v                      print numbers in output thread to standard out
+ *      -s                      seed for rand()
+ *      -l {number of elements} count of numbers to sort. default 100
+ *      -b {size of buffer}     buffer size. default 1
+ */
 int main(int argc, char **argv) {
 
     int c;
     int seed = 42;
-    int length = 3;
+    int length = 100;
     struct timeval tv1, tv2;
 
     while((c = getopt(argc, argv, "l:s:b:v")) != -1) {
