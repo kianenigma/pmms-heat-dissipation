@@ -158,13 +158,14 @@ void *output(void *p) {
 }
 
 /**
+ * Sends given value via buffer[write_in] and with waiting on write_empty and posting on write_full.
  *
  * @param write_buffer
  * @param write_empty
  * @param write_full
  * @param write_in
  * @param value
- * @return
+ * @return next write_in value
  */
 int send_value(int *write_buffer, sem_t *write_empty, sem_t *write_full, int write_in, int value) {
     sem_wait(write_empty);
