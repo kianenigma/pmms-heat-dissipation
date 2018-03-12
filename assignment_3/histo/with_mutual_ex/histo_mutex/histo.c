@@ -130,10 +130,10 @@ void *thread_proc(void *param) {
  *      -p      Number of threads used.
  */
 int main(int argc, char *argv[]) {
-    unsigned int WIDTH = 500, HEIGHT = 500, NUM_THREADS = 4;
+    unsigned int WIDTH = 50, HEIGHT = 50, NUM_THREADS = 10, SEQ = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "w:h:p:")) != -1) {
+    while ((c = getopt(argc, argv, "sw:h:p:")) != -1) {
         switch (c) {
             case 'w':
                 WIDTH = (unsigned int) atoi(optarg);
@@ -143,6 +143,9 @@ int main(int argc, char *argv[]) {
                 break;
             case 'p':
                 NUM_THREADS = (unsigned int) atoi(optarg);
+                break;
+            case 's':
+                SEQ = 1; 
                 break;
             case '?':
                 if (optopt == 'w' || optopt == 'h' || optopt == 'p') {
@@ -160,7 +163,7 @@ int main(int argc, char *argv[]) {
 
     printf("WIDTH \t-w\t%d\nHEIGHT \t-h\t%d\nNUM_THREADS \t-p\t%d\n", WIDTH, HEIGHT, NUM_THREADS);
 
-    struct timeval before, after;
+    struct timeval before, after, seq_before, seq_after;
 
     unsigned int (*restrict img)[HEIGHT][WIDTH] = malloc(HEIGHT * WIDTH * sizeof(unsigned int));
 
@@ -177,7 +180,17 @@ int main(int argc, char *argv[]) {
     }
 
     /* calculate and print ref histogram */
-    calculate_histo_seq(HEIGHT, WIDTH, img, histo_ref);
+    if ( SEQ ) {
+        struct timeval seq_before, seq_after; 
+        gettimeofday(&seq_before, NULL); 
+        calculate_histo_seq(HEIGHT, WIDTH, img, histo_ref);
+        gettimeofday(&seq_after, NULL);
+
+        double t = (double) (seq_after.tv_usec - seq_before.tv_usec) / 1000000 +
+                (double) (seq_after.tv_sec  - seq_before.tv_sec);
+
+        printf("Seq execution took: % .6e", t);
+    }
 
     /* divide the matrix */
     unsigned int rows_assigned = 0;

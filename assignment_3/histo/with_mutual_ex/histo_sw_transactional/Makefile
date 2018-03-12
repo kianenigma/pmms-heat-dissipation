@@ -3,7 +3,7 @@ PRJ=$(CURR_DIR)
 SRC=$(wildcard *.c)
 OBJ=$(patsubst %.c,%.o,$(SRC))
 
-CC=gcc
+CC=gcc-7
 INCLUDES=-I../../include
 ifndef DEBUG
 CFLAGS=-O2 -std=c99 -fgnu-tm -lpthread
