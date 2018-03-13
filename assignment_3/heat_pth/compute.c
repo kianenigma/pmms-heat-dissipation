@@ -32,8 +32,6 @@ typedef struct thread_params{
     struct results* results_ptr;
     struct parameters* parameters_ptr;
     struct timeval *before;
-
-
 } thread_params;
 
 
@@ -176,6 +174,8 @@ void *thread_proc(void *p) {
     int end_idx = params->end_idx;
     struct timeval *before = params->before;
 
+    printf("Thread %d started\n", params->id);
+
     double (*restrict src)[h][w] = params->src_ptr;
     double (*restrict dst)[h][w] = params->dst_ptr;
     double (*restrict c)[h][w] = params->c_ptr;
@@ -199,6 +199,7 @@ void *thread_proc(void *p) {
         for (i = start_idx; i < end_idx  ; ++i) {
             for (j = 1; j < w - 1; ++j)
             {
+//                if ( params->id)
                 double w = (*c)[i][j];
                 double restw = 1.0 - w;
                 double v, v_old;
@@ -337,8 +338,8 @@ void do_compute(const struct parameters* p, struct results *r)
 
     // Split computation/copy space among threads
     int thread_row_counts[NUM_THREADS];
-    int row_per_thread = p->M / NUM_THREADS;
-    int remainder = p->M - (NUM_THREADS*row_per_thread);
+    int row_per_thread = p->N / NUM_THREADS;
+    int remainder = p->N - (NUM_THREADS*row_per_thread);
     for (int t = 0; t < NUM_THREADS; t++) { thread_row_counts[t] = row_per_thread; }
     int turn = 0;
     while (remainder != 0 ) {
@@ -393,16 +394,13 @@ void do_compute(const struct parameters* p, struct results *r)
         params->num_threads = &NUM_THREADS;
         params->results_ptr = r;
         params->parameters_ptr = p;
-
         params->before = &before;
-
 
         pthread_create(&(_thread_ids[i]), &attr, (void*) thread_proc, params);
         if (i == 0) {
             gettimeofday(&before, NULL);
         }
     }
-
 
     /* Wait for all of them to finish */
     for (i = 0; i < NUM_THREADS; i++) {

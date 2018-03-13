@@ -8,7 +8,6 @@ include_directories(./../../include/)
 
 set(SOURCE_FILES
         compute.c
-        compute_seq.c
         pthread_barrier.c
         fail.c
         img.c

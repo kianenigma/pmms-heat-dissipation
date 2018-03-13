@@ -92,7 +92,7 @@ void calculate_histo_seq(unsigned int HEIGHT, unsigned int WIDTH,
     int i, j;
     for (i = 0; i < HEIGHT; i++) {
         for (j = 0; j < WIDTH; j++) {
-            (*histo)[(*img)[i][j]]++;
+            (*histo)[ (*img)[i][j] ]++;
         }
     }
 }
