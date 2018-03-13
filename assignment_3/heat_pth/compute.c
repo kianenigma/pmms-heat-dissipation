@@ -174,8 +174,6 @@ void *thread_proc(void *p) {
     int end_idx = params->end_idx;
     struct timeval *before = params->before;
 
-    printf("Thread %d started\n", params->id);
-
     double (*restrict src)[h][w] = params->src_ptr;
     double (*restrict dst)[h][w] = params->dst_ptr;
     double (*restrict c)[h][w] = params->c_ptr;
@@ -199,7 +197,6 @@ void *thread_proc(void *p) {
         for (i = start_idx; i < end_idx  ; ++i) {
             for (j = 1; j < w - 1; ++j)
             {
-//                if ( params->id)
                 double w = (*c)[i][j];
                 double restw = 1.0 - w;
                 double v, v_old;
