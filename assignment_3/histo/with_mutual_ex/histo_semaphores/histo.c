@@ -6,9 +6,7 @@
 #include "getopt.h"
 #include "semaphore.h"
 
-#define PALLET_SIZE 255
-
-sem_t sem;
+#define PALLET_SIZE 256
 
 typedef struct thread_args {
     unsigned int start_idx;
@@ -17,6 +15,7 @@ typedef struct thread_args {
     unsigned int height;
     unsigned int ***restrict img;
     unsigned int **restrict histo;
+    sem_t *sem_array;
 } thread_args;
 
 /**
@@ -48,7 +47,7 @@ void generate_random_image(unsigned int HEIGHT, unsigned int WIDTH, unsigned int
     int i, j;
     for (i = 0; i < HEIGHT; i++) {
         for (j = 0; j < WIDTH; j++) {
-            unsigned int pix_value = (unsigned int) rand() % (PALLET_SIZE + 1);
+            unsigned int pix_value = (unsigned int) rand() % (PALLET_SIZE ) ;
             (*img)[i][j] = pix_value;
         }
     }
@@ -111,13 +110,15 @@ void *thread_proc(void *param) {
     unsigned int width = args->width;
     unsigned int (*restrict img)[args->height][args->width] = args->img;
     unsigned int (*restrict histo)[args->width] = args->histo;
+    sem_t *sem_array = args->sem_array;
     unsigned int i, j;
 
     for (i = lb; i < ub; i++) {
         for (j = 0; j < width; j++) {
-            sem_wait(&sem);
-            (*histo)[(*img)[i][j]]++;
-            sem_post(&sem);
+            const unsigned int pix_val = (*img)[i][j];
+            sem_wait(&sem_array[pix_val]);
+            (*histo)[pix_val]++;
+            sem_post(&sem_array[pix_val]);
         }
     }
 }
@@ -131,7 +132,7 @@ void *thread_proc(void *param) {
  *      -p      Number of threads used.
  */
 int main(int argc, char *argv[]) {
-    unsigned int WIDTH = 50, HEIGHT = 50, NUM_THREADS = 10, SEQ = 0;
+    unsigned int WIDTH = 50, HEIGHT = 50, NUM_THREADS = 4, SEQ = 0;
 
     int c;
     while ((c = getopt(argc, argv, "sw:h:p:")) != -1) {
@@ -175,9 +176,11 @@ int main(int argc, char *argv[]) {
     /* common buffer */
     unsigned int (*restrict histo)[PALLET_SIZE] = malloc(PALLET_SIZE * sizeof(unsigned int));
     unsigned int (*restrict histo_ref)[PALLET_SIZE] = malloc(PALLET_SIZE * sizeof(unsigned int));
+    sem_t sem_array[PALLET_SIZE];
     for (int i = 0; i < PALLET_SIZE; i++) {
         (*histo)[i] = 0;
         (*histo_ref)[i] = 0;
+        sem_init(&sem_array[i], 0, 1);
     }
 
     /* calculate and print ref histogram */
@@ -219,7 +222,6 @@ int main(int argc, char *argv[]) {
     }
 
     /* spawn threads */
-    sem_init(&sem, 0, 1);
     pthread_t _thread_ids[NUM_THREADS];
 
     pthread_attr_t attr;
@@ -232,6 +234,7 @@ int main(int argc, char *argv[]) {
         args->start_idx = thread_start_idx[t];
         args->end_idx = thread_end_idx[t];
         args->width = WIDTH;
+        args->sem_array = sem_array;
         args->histo = histo;
         args->img = img;
 

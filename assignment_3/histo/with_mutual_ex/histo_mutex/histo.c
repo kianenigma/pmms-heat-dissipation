@@ -5,9 +5,7 @@
 #include "pthread.h"
 #include "getopt.h"
 
-#define PALLET_SIZE 255
-
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+#define PALLET_SIZE 256
 
 typedef struct thread_args {
     unsigned int start_idx;
@@ -16,6 +14,7 @@ typedef struct thread_args {
     unsigned int height;
     unsigned int ***restrict img;
     unsigned int **restrict histo;
+    pthread_mutex_t *mutex_arr;
 } thread_args;
 
 /**
@@ -47,7 +46,7 @@ void generate_random_image(unsigned int HEIGHT, unsigned int WIDTH, unsigned int
     int i, j;
     for (i = 0; i < HEIGHT; i++) {
         for (j = 0; j < WIDTH; j++) {
-            unsigned int pix_value = (unsigned int) rand() % (PALLET_SIZE + 1);
+            unsigned int pix_value = (unsigned int) rand() % (PALLET_SIZE);
             (*img)[i][j] = pix_value;
         }
     }
@@ -110,13 +109,15 @@ void *thread_proc(void *param) {
     unsigned int width = args->width;
     unsigned int (*restrict img)[args->height][args->width] = args->img;
     unsigned int (*restrict histo)[args->width] = args->histo;
+    pthread_mutex_t *mutex_array = args->mutex_arr;
     unsigned int i, j;
 
     for (i = lb; i < ub; i++) {
         for (j = 0; j < width; j++) {
-            pthread_mutex_lock(&mutex);
-            (*histo)[(*img)[i][j]]++;
-            pthread_mutex_unlock(&mutex);
+            const unsigned int pix_val = (*img)[i][j];
+            pthread_mutex_lock(&mutex_array[pix_val]);
+            (*histo)[pix_val]++;
+            pthread_mutex_unlock(&mutex_array[pix_val]);
         }
     }
 }
@@ -130,7 +131,7 @@ void *thread_proc(void *param) {
  *      -p      Number of threads used.
  */
 int main(int argc, char *argv[]) {
-    unsigned int WIDTH = 50, HEIGHT = 50, NUM_THREADS = 10, SEQ = 0;
+    unsigned int WIDTH = 50, HEIGHT = 50, NUM_THREADS = 4, SEQ = 0;
 
     int c;
     while ((c = getopt(argc, argv, "sw:h:p:")) != -1) {
@@ -174,9 +175,11 @@ int main(int argc, char *argv[]) {
     /* common buffer */
     unsigned int (*restrict histo)[PALLET_SIZE] = malloc(PALLET_SIZE * sizeof(unsigned int));
     unsigned int (*restrict histo_ref)[PALLET_SIZE] = malloc(PALLET_SIZE * sizeof(unsigned int));
+    pthread_mutex_t mutex_array[PALLET_SIZE];
     for (int i = 0; i < PALLET_SIZE; i++) {
         (*histo)[i] = 0;
         (*histo_ref)[i] = 0;
+        pthread_mutex_init(&mutex_array[i], NULL);
     }
 
     /* calculate and print ref histogram */
@@ -229,6 +232,7 @@ int main(int argc, char *argv[]) {
         thread_args *args = &thread_args_array[t];
         args->start_idx = thread_start_idx[t];
         args->end_idx = thread_end_idx[t];
+        args->mutex_arr = mutex_array;
         args->width = WIDTH;
         args->histo = histo;
         args->img = img;

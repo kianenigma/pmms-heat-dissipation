@@ -5,7 +5,7 @@
 #include "pthread.h"
 #include "getopt.h"
 
-#define PALLET_SIZE 255
+#define PALLET_SIZE 256
 
 typedef struct thread_args {
     unsigned int start_idx;
@@ -45,7 +45,7 @@ void generate_random_image(unsigned int HEIGHT, unsigned int WIDTH, unsigned int
     int i, j;
     for (i = 0; i < HEIGHT; i++) {
         for (j = 0; j < WIDTH; j++) {
-            unsigned int pix_value = (unsigned int) rand() % (PALLET_SIZE + 1);
+            unsigned int pix_value = (unsigned int) rand() % (PALLET_SIZE);
             (*img)[i][j] = pix_value;
         }
     }
@@ -126,7 +126,7 @@ void *thread_proc(void *param) {
  *      -p      Number of threads used.
  */
 int main(int argc, char *argv[]) {
-    unsigned int WIDTH = 50, HEIGHT = 50, NUM_THREADS = 10, SEQ = 0;
+    unsigned int WIDTH = 50, HEIGHT = 50, NUM_THREADS = 4, SEQ = 0;
 
     int c;
     while ((c = getopt(argc, argv, "sw:h:p:")) != -1) {

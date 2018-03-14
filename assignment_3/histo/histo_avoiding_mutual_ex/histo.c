@@ -5,13 +5,14 @@
 #include "pthread.h"
 #include "getopt.h"
 
-#define PALLET_SIZE 255
+#define PALLET_SIZE 256
 
 typedef struct thread_args {
     unsigned int start_idx;
     unsigned int end_idx;
     unsigned int width;
     unsigned int height;
+    unsigned int id;
     unsigned int ***restrict img;
     unsigned int **restrict histo;
 } thread_args;
@@ -45,7 +46,7 @@ void generate_random_image(unsigned int HEIGHT, unsigned int WIDTH, unsigned int
     int i, j;
     for (i = 0; i < HEIGHT; i++) {
         for (j = 0; j < WIDTH; j++) {
-            unsigned int pix_value = (unsigned int) rand() % (PALLET_SIZE + 1);
+            unsigned int pix_value = (unsigned int) rand() % (PALLET_SIZE );
             (*img)[i][j] = pix_value;
         }
     }
@@ -92,7 +93,7 @@ void calculate_histo_seq(unsigned int HEIGHT, unsigned int WIDTH,
     int i, j;
     for (i = 0; i < HEIGHT; i++) {
         for (j = 0; j < WIDTH; j++) {
-            (*histo)[ (*img)[i][j] ]++;
+            (*histo)[(*img)[i][j]]++;
         }
     }
 }
@@ -111,12 +112,12 @@ void *thread_proc(void *param) {
     unsigned int (*restrict histo)[args->width] = args->histo;
     unsigned int i, j;
 
-    for (i = 0; i < height; i++) {
+    /* increase histogram pointer */
+    unsigned int *histo_local = (*histo) + (args->id*PALLET_SIZE);
+
+    for (i = lb; i < ub; i++) {
         for (j = 0; j < width; j++) {
-            unsigned int pix_val = (*img)[i][j];
-            if (pix_val < ub && pix_val >= lb) {
-                (*histo)[pix_val]++;
-            }
+            histo_local[(*img)[i][j]]++;
         }
     }
 }
@@ -172,12 +173,16 @@ int main(int argc, char *argv[]) {
 //    print_image(HEIGHT, WIDTH, img);
 
     /* common buffer */
-    unsigned int (*restrict histo)[PALLET_SIZE] = malloc(PALLET_SIZE * sizeof(unsigned int));
+    unsigned int (*restrict histo)[PALLET_SIZE] = malloc(NUM_THREADS * PALLET_SIZE * sizeof(unsigned int));
     unsigned int (*restrict histo_ref)[PALLET_SIZE] = malloc(PALLET_SIZE * sizeof(unsigned int));
     for (int i = 0; i < PALLET_SIZE; i++) {
-        (*histo)[i] = 0;
         (*histo_ref)[i] = 0;
+        (*histo)[i] = 0;
     }
+    for (int i = 0; i < PALLET_SIZE*NUM_THREADS; i++) {
+        (*histo)[i] = 0;
+    }
+
 
     /* calculate and print ref histogram */
     if ( SEQ ) {
@@ -193,28 +198,32 @@ int main(int argc, char *argv[]) {
     }
 
     /* divide the matrix */
-    unsigned int colors_assigned = 0;
+    unsigned int rows_assigned = 0;
     unsigned int thread_row_count[NUM_THREADS];
     for (int i = 0; i < NUM_THREADS; i++) thread_row_count[i] = 0;
 
     unsigned int thread_start_idx[NUM_THREADS];
     unsigned int thread_end_idx[NUM_THREADS];
+    int thread_ids[NUM_THREADS];
 
     int turn = 0;
-    while (colors_assigned < PALLET_SIZE) {
+    while (rows_assigned < HEIGHT) {
         thread_row_count[turn % NUM_THREADS]++;
         turn++;
-        colors_assigned++;
+        rows_assigned++;
     }
-    colors_assigned = 0;
+
+    rows_assigned = 0;
     printf("\nRow map ::\n");
     for (int i = 0; i < NUM_THREADS; i++) {
-        thread_start_idx[i] = colors_assigned;
-        thread_end_idx[i] = colors_assigned + thread_row_count[i];
-        colors_assigned += thread_row_count[i];
+        thread_start_idx[i] = rows_assigned;
+        thread_end_idx[i] = rows_assigned + thread_row_count[i];
+        rows_assigned += thread_row_count[i];
 
         printf("Thread %d :: %d - > %d [weight=%d]\n", i, thread_start_idx[i], thread_end_idx[i],
                thread_end_idx[i] - thread_start_idx[i]);
+
+        thread_ids[i] = i;
     }
 
     /* spawn threads */
@@ -226,7 +235,6 @@ int main(int argc, char *argv[]) {
     thread_args thread_args_array[NUM_THREADS];
 
     for (int t = 0; t < NUM_THREADS; t++) {
-        // TODO: if args is not a pointer, the parameters will overlap. Investigate this
         thread_args *args = &thread_args_array[t];
         args->start_idx = thread_start_idx[t];
         args->end_idx = thread_end_idx[t];
@@ -234,6 +242,7 @@ int main(int argc, char *argv[]) {
         args->height = HEIGHT;
         args->histo = histo;
         args->img = img;
+        args->id = thread_ids[t];
 
         pthread_create(&(_thread_ids[t]), &attr, (void *) thread_proc, args);
         if (t == 0) {
@@ -243,6 +252,15 @@ int main(int argc, char *argv[]) {
 
     for (int t = 0; t < NUM_THREADS; t++) {
         pthread_join(_thread_ids[t], NULL);
+    }
+    /* Join histograms sequentially */
+    unsigned int *histo_tmp;
+    for (int i = 1; i < NUM_THREADS; i++) {
+        // set the start pointer
+        histo_tmp = ((*histo) + i*PALLET_SIZE);
+        for (int j = 0; j < PALLET_SIZE; j++ ) {
+            (*histo)[j] += histo_tmp[j];
+        }
     }
 
     gettimeofday(&after, NULL);
