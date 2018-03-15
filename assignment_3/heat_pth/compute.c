@@ -4,13 +4,8 @@
 #include "stdio.h"
 #include <pthread.h>
 #include "compute.h"
-#include "pthread_barrier.h"
 
 #define M_SQRT2 1.41421356237309504880
-
-// TODO: this is doing one iteration less than expected.
-// TODO: parameter passing of restrict pointer uses casting. This might disable optimization. check it.
-// TODO: see int_fast32_t data type
 
 static const double c_cdir = 0.25 * M_SQRT2 / (M_SQRT2 + 1.0);
 static const double c_cdiag = 0.25 / (M_SQRT2 + 1.0);
