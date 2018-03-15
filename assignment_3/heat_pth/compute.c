@@ -355,7 +355,7 @@ void do_compute(const struct parameters* p, struct results *r)
 
 
     for (i = 0; i < NUM_THREADS; i++) {
-        printf("[Thread %d] :: %d -> %d [copy: %d -> %d][weigth=%d]\n", i, threads_start_idx[i], threads_end_idx[i], thread_cp_start_idx[i], thread_cp_end_idx[i], threads_end_idx[i]-threads_start_idx[i]);
+//        printf("[Thread %d] :: %d -> %d [copy: %d -> %d][weigth=%d]\n", i, threads_start_idx[i], threads_end_idx[i], thread_cp_start_idx[i], thread_cp_end_idx[i], threads_end_idx[i]-threads_start_idx[i]);
         // assign id of the thread.
         thread_ids[i] = i;
     }
@@ -367,8 +367,6 @@ void do_compute(const struct parameters* p, struct results *r)
     pthread_attr_init(&attr);
     pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
 
-    printf("\n# Thread attributes:\n");
-    display_pthread_attr(&attr, "");
 
     /* Initialize 4 threads with their parameters*/
     for (i = 0; i < NUM_THREADS; i++) {
@@ -406,8 +404,10 @@ void do_compute(const struct parameters* p, struct results *r)
 
     if (iter == 0) { iter = p->maxiter; }
 
-    /* Do one last swap to get the updates of the last iteration */
-    { void *tmp = src; src = dst; dst = tmp; }
+    /*ONLY IF we terminated with max iter: Do one last swap to get the updates of the last iteration */
+    if ( iter != p->maxiter ) {
+        { void *tmp = src; src = dst; dst = tmp; }
+    }
 
     /* report at end in all cases */
     fill_report(p, r, h, w, dst, src, iter, &before, &after);
