@@ -26,8 +26,8 @@ static void checkCudaCall(cudaError_t result) {
 
 
 __global__ void histogramKernel(unsigned char* image, long img_size, unsigned int* histogram, int hist_size) {
-// insert operation here
-
+    int i = threadIdx.x + blockDim.x * blockIdx.x;
+    atomicAdd(&histogram[image[i]], 1);
 }
 
 void histogramCuda(unsigned char* image, long img_size, unsigned int* histogram, int hist_size) {
@@ -54,6 +54,7 @@ void histogramCuda(unsigned char* image, long img_size, unsigned int* histogram,
     // copy the original vectors to the GPU
     memoryTime.start();
     checkCudaCall(cudaMemcpy(deviceImage, image, img_size*sizeof(unsigned char), cudaMemcpyHostToDevice));
+    checkCudaCall(cudaMemset(deviceHisto, 0, hist_size * sizeof(unsigned int)));
     memoryTime.stop();
 
     // execute kernel
@@ -90,7 +91,7 @@ void histogramSeq(unsigned char* image, long img_size, unsigned int* histogram, 
   }
   sequentialTime.stop();
   
-  cout << "histogram (sequential): \t\t" << sequentialTime << endl;
+  cout << "histogram (seq): \t\t" << sequentialTime << endl;
 
 }
 
@@ -118,7 +119,7 @@ int main(int argc, char* argv[]) {
     histogramSeq(image, img_size, histogramS, hist_size);
     histogramCuda(image, img_size, histogram, hist_size);
     
-    // verify the resuls
+    // verify the results
     for(int i=0; i<hist_size; i++) {
 	  if (histogram[i]!=histogramS[i]) {
             cout << "error in results! Bin " << i << " is "<< histogram[i] << ", but should be " << histogramS[i] << endl; 

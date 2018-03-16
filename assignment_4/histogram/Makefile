@@ -33,4 +33,4 @@ myhistogram-events:	$(CU_EV_OBJECTS) $(CC_OBJECTS)
 			$(NVCC) $^ -o $@ 
 
 clean:
-		rm -f *.o histogram histogram-events histo_gpu
+		rm -f *.o *.ptx myhistogram myhistogram-events histo_gpu
