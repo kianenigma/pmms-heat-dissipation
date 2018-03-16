@@ -4,16 +4,13 @@ CC		= g++
 CU_FLAGS	= -O3 -g --ptxas-options=-v -arch compute_20 -code sm_20
 CC_FLAGS	= -O3 -m64 -Wall
 
-CU_SOURCES	= histogram.cu
-CU_EV_SOURCES	= histogram-events.cu
+CU_SOURCES	= convolution.cu
 CC_SOURCES	= timer.cc
 
 CU_OBJECTS	= $(CU_SOURCES:%.cu=%.o)
-CU_EV_OBJECTS	= $(CU_EV_SOURCES:%.cu=%.o)
 CU_PTX		= $(CU_SOURCES:%.cu=%.ptx)
 CU_EV_PTX	= $(CU_EV_SOURCES:%.cu=%.ptx)
 CC_OBJECTS	= $(CC_SOURCES:%.cc=%.o)
-
 
 %.o:		%.cu
 		$(NVCC) $(CU_FLAGS) -c $< -o $@
@@ -24,13 +21,8 @@ CC_OBJECTS	= $(CC_SOURCES:%.cc=%.o)
 %.ptx:		%.cu
 		$(NVCC) $(CU_FLAGS) --ptx $< -o $@
 
-myhistogram:	$(CU_OBJECTS) $(CC_OBJECTS)
+myconvolution:	$(CU_OBJECTS) $(CC_OBJECTS)
 		$(NVCC) $^ -o $@
 
-ptx:            $(CU_PTX)
-
-myhistogram-events:	$(CU_EV_OBJECTS) $(CC_OBJECTS) 
-			$(NVCC) $^ -o $@ 
-
 clean:
-		rm -f *.o histogram histogram-events histo_gpu
+		rm -f *.o myconvolution
