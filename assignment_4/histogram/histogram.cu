@@ -27,11 +27,20 @@ static void checkCudaCall(cudaError_t result) {
 
 __global__ void histogramKernel(unsigned char* image, long img_size, unsigned int* histogram, int hist_size) {
     int i = threadIdx.x + blockDim.x * blockIdx.x;
-    atomicAdd(&histogram[image[i]], 1);
+    if(i < img_size) {
+        atomicAdd(&histogram[image[i]], 1);
+    }
 }
 
 void histogramCuda(unsigned char* image, long img_size, unsigned int* histogram, int hist_size) {
     int threadBlockSize = 512;
+    int blocks;
+
+    // calculate number of blocks based on img_size
+    blocks = img_size / threadBlockSize;
+    if(img_size % threadBlockSize != 0) {
+        blocks++;
+    }
 
     // allocate the vectors on the GPU
     unsigned char* deviceImage = NULL;
@@ -59,7 +68,7 @@ void histogramCuda(unsigned char* image, long img_size, unsigned int* histogram,
 
     // execute kernel
     kernelTime1.start();
-    histogramKernel<<<img_size/threadBlockSize, threadBlockSize>>>(deviceImage, img_size, deviceHisto, hist_size);
+    histogramKernel<<<blocks, threadBlockSize>>>(deviceImage, img_size, deviceHisto, hist_size);
     cudaDeviceSynchronize();
     kernelTime1.stop();
 
@@ -95,6 +104,10 @@ void histogramSeq(unsigned char* image, long img_size, unsigned int* histogram, 
 
 }
 
+
+/*
+    prun -v -1 -np 1 -native '-l gpu=GTX480' ./myhistogram
+*/
 int main(int argc, char* argv[]) {
     long img_size = 655360;
     int hist_size = 256;
