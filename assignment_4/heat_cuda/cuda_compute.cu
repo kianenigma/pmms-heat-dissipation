@@ -140,8 +140,11 @@ __global__ void diffUpdateKernel(size_t w, double* maxdiff) {
     // shared_maxdiff[_index(i,j,w)] = maxdiff[_index(i,j,w)];     
     // __syncthreads(); 
 
-    for (unsigned int s=blockDim.x/2; s>0; s>>=1) {
+    for (unsigned int s=(blockDim.x*gridDim.x)/2; s>0; s>>=1) {
         if (threadIdx.x < s) {
+            // if (i == 0 && blockIdx.x == 0 && blockIdx.y == 0) {
+            //     printf("[Thread %d %d]comparing %d to %d \n",i, j, _index(i,j,w), _index(i,j+s,w));
+            // }
             if (maxdiff[_index(i,j+s,w)] > maxdiff[_index(i,j,w)]) {
                 maxdiff[_index(i,j,w)] = maxdiff[_index(i,j+s,w)]; 
             }
@@ -159,7 +162,7 @@ __global__ void diffUpdateKernel_2(size_t w, double* maxdiff) {
     // shared_maxdiff[_index(i,j,w)] = maxdiff[_index(i,j,w)];     
     // __syncthreads(); 
 
-    for (unsigned int s=blockDim.y/2; s>0; s>>=1) {
+    for (unsigned int s=(blockDim.x*gridDim.x)/2; s>0; s>>=1) {
         if (threadIdx.y < s) {
             if (maxdiff[_index(i+s,j,w)] > maxdiff[_index(i,j,w)]) {
                 maxdiff[_index(i,j,w)] = maxdiff[_index(i+s,j,w)]; 
@@ -237,7 +240,7 @@ __global__ void GlobalcellUpdateKernel(double* src, double* dst, const double* c
 
 
 extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
-    unsigned const int GRID_DIM = 10;
+    unsigned const int GRID_DIM = 8;
 
     const size_t N = p->N; 
     const size_t M =  p->M; 
@@ -245,8 +248,8 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
     printf("ORIGINAL DIMENSTIONS [%d %d]\n", N, M);
 
     /* Augment the size until they are both powers of two */
-    const size_t _N = pow(2, ceil(log(_N)/log(2)));
-    const size_t _M = pow(2, ceil(log(_M)/log(2)));
+    const size_t _N = pow(2, ceil(log(N)/log(2)));
+    const size_t _M = pow(2, ceil(log(M)/log(2)));
 
     printf("VIRTUAL DIMENSTIONS [%d %d]\n", _N, _M);    
 
@@ -338,14 +341,14 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
     for (int i = 0; i < GRID_DIM*GRID_DIM; i++) { h_block_flag[i] = 0; }
 
     /* 1) can unly be used with the global kernel flag map for blocks being finished with an iteration */
-    int *d_block_flag;
+        int *d_block_flag;
     checkCudaCall(cudaMalloc((void **) &d_block_flag, GRID_DIM*GRID_DIM*sizeof(int))); 
     checkCudaCall(cudaMemcpy(d_block_flag, h_block_flag, GRID_DIM*GRID_DIM*sizeof(int), cudaMemcpyHostToDevice)); 
 
     /* 2) can only be used with multi-kernel */
     double *h_maxdiff = (double *)malloc(MALLOC_VAL*sizeof(double)); 
     for (int i = 0; i < h*w; i++) { h_maxdiff[i] = 0; }
-    double *d_maxdiff; 
+        double *d_maxdiff; 
     checkCudaCall(cudaMalloc((void **) &d_maxdiff, MALLOC_VAL*sizeof(double))); 
     checkCudaCall(cudaMemcpy(d_maxdiff, h_maxdiff, MALLOC_VAL*sizeof(double), cudaMemcpyHostToDevice)); 
 
@@ -362,13 +365,15 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
         mirrorKernel<<<mirror_dim_grid, mirror_dim_block>>>(d_dst, w); 
 
         /* calculate diff,  */
+        // TODO: maybe would be more optimzied with an initial kernel half of the size in each row (see slides) 
+        // TODO: second kernel is very bad in terms of memory usage. Transpose it  
         diffUpdateKernel<<<maxdiff_dim_grid, maxdiff_dim_block, BLOCK_DIM_X*BLOCK_DIM_Y*sizeof(double)>>>(w, d_maxdiff); 
         diffUpdateKernel_2<<<maxdiff_2_dim_grid, maxdiff_2_dim_block, BLOCK_DIM_X*BLOCK_DIM_Y*sizeof(double)>>>(w, d_maxdiff); 
 
         // DEBUG 
-        printf("result at end of iter %d\n", it);
-        checkCudaCall(cudaMemcpy(h_dst, d_dst, MALLOC_VAL*sizeof(double), cudaMemcpyDeviceToHost)); 
-        summary_matrix(w, h, h_dst);
+        // printf("result at end of iter %d\n", it);
+        // checkCudaCall(cudaMemcpy(h_dst, d_dst, MALLOC_VAL*sizeof(double), cudaMemcpyDeviceToHost)); 
+        // summary_matrix(w, h, h_dst);
         // checkCudaCall(cudaMemcpy(h_maxdiff, d_maxdiff, w*h*sizeof(double), cudaMemcpyDeviceToHost)); 
         // printf("maxdiff at end of iter %d\n", it);
         // summary_matrix(w, h, h_maxdiff);
@@ -392,7 +397,7 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
     cudaDeviceSynchronize();   
     checkCudaCall(cudaGetLastError()); 
     checkCudaCall(cudaMemcpy(h_dst, d_dst, MALLOC_VAL*sizeof(double), cudaMemcpyDeviceToHost)); 
-    summary_matrix(w, h, h_dst);
+    // summary_matrix(w, h, h_dst);
     fill_report(w, h, h_dst, r, *global_maxdiff, it);     
 
     /* cleanup device */
