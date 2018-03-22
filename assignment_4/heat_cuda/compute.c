@@ -13,7 +13,7 @@ void do_compute(const struct parameters* p, struct results *r)
     struct timeval before, after;
     gettimeofday(&before, NULL);
 
-    cuda_do_compute();
+    cuda_do_compute(p, r);
 
     gettimeofday(&after, NULL);
     r->time = (double)(after.tv_sec - before.tv_sec) + 
