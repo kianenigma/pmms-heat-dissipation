@@ -19,6 +19,9 @@
 
 using namespace std;
 
+// TODO: use shared mem per block
+// TODO: use tiling
+
 void convolutionSeq(float *output, float *input, float *filter) {
     //for each pixel in the output image
 
@@ -29,7 +32,7 @@ void convolutionSeq(float *output, float *input, float *filter) {
   for (int y=0; y < image_height; y++) {
     for (int x=0; x < image_width; x++) { 
 
-            //for each filter weight
+        //for each filter weight
         for (int i=0; i < filter_height; i++) {
             for (int j=0; j < filter_width; j++) {
                 output[y*image_width+x] += input[(y+i)*input_width+x+j] * filter[i*filter_width+j];
@@ -44,15 +47,17 @@ cout << "convolution (sequential): \t\t" << sequentialTime << endl;
 }
 
 
-__global__ void convolution_kernel_naive(float *output, float *input, float *filter) {
+__global__ void convolution_kernel(float *output, float *input, float *filter) {
     const unsigned int y = blockIdx.y * blockDim.y + threadIdx.y; 
     const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x; 
+    float sum = 0.0;
 
     for (int i=0; i < filter_height; i++) {
         for (int j=0; j < filter_width; j++) {
-            output[y*image_width+x] += input[(y+i)*input_width+x+j] * filter[i*filter_width+j];
+            sum += input[(y+i)*input_width+x+j] * filter[i*filter_width+j];
         }
     }
+    output[y*image_width+x] = sum; 
 }
 
 void convolutionCUDA(float *output, float *input, float *filter) {
@@ -91,7 +96,7 @@ void convolutionCUDA(float *output, float *input, float *filter) {
     printf("GRID DIM [%d %d] | BLOCK DIM [%d %d]\n", grid.y, grid.x, threads.y, threads.x);
     //measure the GPU function
     kernelTime.start();
-    convolution_kernel_naive<<<grid, threads>>>(d_output, d_input, d_filter);
+    convolution_kernel<<<grid, threads>>>(d_output, d_input, d_filter);
     cudaDeviceSynchronize();
     kernelTime.stop();
 
