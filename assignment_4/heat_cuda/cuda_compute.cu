@@ -131,20 +131,84 @@ __global__ void mirrorKernel(double* dst, size_t w) {
     }
 }
 
+
+__global__ void diffUpdateKernel_sharedMem(size_t w, double* maxdiff) {
+    const unsigned int i = blockIdx.y * blockDim.y + threadIdx.y; 
+    const unsigned int j = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int block_resp_index = blockDim.x*threadIdx.y + threadIdx.x; 
+
+    /* Load the entire matrix in parallel and sync each thread */
+    extern __shared__ double shared_maxdiff[]; 
+    // shared_maxdiff[0] = maxdiff[_index(i,j,w)];     
+    shared_maxdiff[block_resp_index] = maxdiff[_index(i,j,w)];     
+    __syncthreads(); 
+
+    /* Reduce each row of the block horizantally */
+    for (unsigned int s=(blockDim.x)/2; s>0; s>>=1) {
+        if (threadIdx.x < s) {
+            if (shared_maxdiff[block_resp_index+s] > shared_maxdiff[block_resp_index]) {
+                shared_maxdiff[block_resp_index] = shared_maxdiff[block_resp_index+s]; 
+            }
+        }
+        __syncthreads();
+    }
+
+    /* Reduce the first column vertically */
+    if ( threadIdx.x == 0 ) {
+        for (unsigned int s=(blockDim.y)/2; s>0; s>>=1) {
+            if (threadIdx.y < s) {
+                if ( threadIdx.y == 0 && blockIdx.x == 0 && blockIdx.y == 0 ) {
+                    printf("[%d] comparing  index %d => [%lf] to [%lf]\n",s,  blockDim.x*(threadIdx.y+s), shared_maxdiff[blockDim.x*(threadIdx.y+s)], shared_maxdiff[block_resp_index]);
+                }
+                if (shared_maxdiff[blockDim.x*(threadIdx.y+s)] > shared_maxdiff[block_resp_index]) {
+                    shared_maxdiff[block_resp_index] = shared_maxdiff[blockDim.x*(threadIdx.y+s)]; 
+                }
+            }
+            __syncthreads();
+        }
+    }
+
+    /* one thread writes the result back */
+    if ( threadIdx.x == 0 && threadIdx.y == 0 ) {
+        printf("writing to %d -> %lf\n", (blockIdx.x+1)+(gridDim.x*gridDim.y), shared_maxdiff[0]);
+        maxdiff[w+1+(blockIdx.x)+(gridDim.x*blockIdx.y)] = shared_maxdiff[0]; 
+    }
+}
+
+__global__ void diffUpdateKernel_sharedMem_2(size_t w, double* maxdiff) {
+    const unsigned int i = blockIdx.y * blockDim.y + threadIdx.y; 
+    const unsigned int j = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int block_resp_index = blockDim.x*threadIdx.y + threadIdx.x; 
+
+    /* Load the entire matrix in parallel and sync each thread */
+    extern __shared__ double shared_maxdiff[]; 
+    // shared_maxdiff[0] = maxdiff[_index(i,j,w)];     
+    shared_maxdiff[threadIdx.x] = maxdiff[_index(0,j,w)];     
+    __syncthreads(); 
+
+    /* Reduce each row of the block horizantally */
+    for (unsigned int s=(blockDim.x)/2; s>0; s>>=1) {
+        if (threadIdx.x < s) {
+            if (shared_maxdiff[block_resp_index+s] > shared_maxdiff[block_resp_index]) {
+                shared_maxdiff[block_resp_index] = shared_maxdiff[block_resp_index+s]; 
+            }
+        }
+        __syncthreads();
+    }
+
+    /* one thread writes the result back */
+    if ( threadIdx.x == 0 && threadIdx.y == 0 ) {
+        printf("WWwriting to %d -> %lf\n", (blockIdx.x+1)+(gridDim.x*gridDim.y), shared_maxdiff[0]);
+        maxdiff[w+1] = shared_maxdiff[0]; 
+    }
+}
+
 __global__ void diffUpdateKernel(size_t w, double* maxdiff) {
     unsigned int i = blockIdx.y * blockDim.y + threadIdx.y; 
     unsigned int j = blockIdx.x * blockDim.x + threadIdx.x;
 
-    /* Load the entire matrix in parallel and sync each thread */
-    // extern __shared__ int shared_maxdiff[]; 
-    // shared_maxdiff[_index(i,j,w)] = maxdiff[_index(i,j,w)];     
-    // __syncthreads(); 
-
     for (unsigned int s=(blockDim.x*gridDim.x)/2; s>0; s>>=1) {
         if (threadIdx.x < s) {
-            // if (i == 0 && blockIdx.x == 0 && blockIdx.y == 0) {
-            //     printf("[Thread %d %d]comparing %d to %d \n",i, j, _index(i,j,w), _index(i,j+s,w));
-            // }
             if (maxdiff[_index(i,j+s,w)] > maxdiff[_index(i,j,w)]) {
                 maxdiff[_index(i,j,w)] = maxdiff[_index(i,j+s,w)]; 
             }
@@ -156,11 +220,6 @@ __global__ void diffUpdateKernel(size_t w, double* maxdiff) {
 __global__ void diffUpdateKernel_2(size_t w, double* maxdiff) {
     unsigned int i = blockIdx.y * blockDim.y + threadIdx.y; 
     unsigned int j = blockIdx.x * blockDim.x + threadIdx.x;
-
-    /* Load the entire matrix in parallel and sync each thread */
-    // extern __shared__ int shared_maxdiff[]; 
-    // shared_maxdiff[_index(i,j,w)] = maxdiff[_index(i,j,w)];     
-    // __syncthreads(); 
 
     for (unsigned int s=(blockDim.x*gridDim.x)/2; s>0; s>>=1) {
         if (threadIdx.y < s) {
@@ -240,7 +299,7 @@ __global__ void GlobalcellUpdateKernel(double* src, double* dst, const double* c
 
 
 extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
-    unsigned const int GRID_DIM = 8;
+    unsigned const int GRID_DIM = 20;
 
     const size_t N = p->N; 
     const size_t M =  p->M; 
@@ -335,7 +394,10 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
     dim3 maxdiff_dim_block(BLOCK_DIM_X, BLOCK_DIM_Y, 1); 
 
     dim3 maxdiff_2_dim_grid(GRID_DIM, GRID_DIM, 1); 
-    dim3 maxdiff_2_dim_block(GRID_DIM, BLOCK_DIM_Y, 1); 
+    dim3 maxdiff_2_dim_block(GRID_DIM, BLOCK_DIM_Y, 1);
+
+    dim3 maxdiff_2_shared_dim_grid(1, 1, 1); 
+    dim3 maxdiff_2_shared_dim_block(GRID_DIM*GRID_DIM, 1, 1); 
 
     int *h_block_flag = (int *)malloc(GRID_DIM*GRID_DIM*sizeof(int)); 
     for (int i = 0; i < GRID_DIM*GRID_DIM; i++) { h_block_flag[i] = 0; }
@@ -367,17 +429,21 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
         /* calculate diff,  */
         // TODO: maybe would be more optimzied with an initial kernel half of the size in each row (see slides) 
         // TODO: second kernel is very bad in terms of memory usage. Transpose it  
-        diffUpdateKernel<<<maxdiff_dim_grid, maxdiff_dim_block, BLOCK_DIM_X*BLOCK_DIM_Y*sizeof(double)>>>(w, d_maxdiff); 
-        diffUpdateKernel_2<<<maxdiff_2_dim_grid, maxdiff_2_dim_block, BLOCK_DIM_X*BLOCK_DIM_Y*sizeof(double)>>>(w, d_maxdiff); 
+        diffUpdateKernel<<<maxdiff_dim_grid, maxdiff_dim_block>>>(w, d_maxdiff);  
+        diffUpdateKernel_2<<<maxdiff_2_dim_grid, maxdiff_2_dim_block>>>(w, d_maxdiff);
+
+        // diffUpdateKernel_sharedMem<<<maxdiff_dim_grid, maxdiff_dim_block, BLOCK_DIM_X*BLOCK_DIM_Y*sizeof(double)>>>(w, d_maxdiff); 
+        // diffUpdateKernel_sharedMem_2<<<maxdiff_2_shared_dim_grid, maxdiff_2_shared_dim_block, GRID_DIM*GRID_DIM*sizeof(double)>>>(w, d_maxdiff);
 
         // DEBUG 
         // printf("result at end of iter %d\n", it);
         // checkCudaCall(cudaMemcpy(h_dst, d_dst, MALLOC_VAL*sizeof(double), cudaMemcpyDeviceToHost)); 
         // summary_matrix(w, h, h_dst);
-        // checkCudaCall(cudaMemcpy(h_maxdiff, d_maxdiff, w*h*sizeof(double), cudaMemcpyDeviceToHost)); 
-        // printf("maxdiff at end of iter %d\n", it);
-        // summary_matrix(w, h, h_maxdiff);
+        checkCudaCall(cudaMemcpy(h_maxdiff, d_maxdiff, w*h*sizeof(double), cudaMemcpyDeviceToHost)); 
+        printf("maxdiff at end of iter %d\n", it);
+        summary_matrix(w, h, h_maxdiff);
 
+        // break;
         /* Copy just one value from maxdiff kernel out */
         checkCudaCall(cudaMemcpy(global_maxdiff, d_maxdiff+w+1, sizeof(double), cudaMemcpyDeviceToHost)); 
         if ( *global_maxdiff < p->threshold ) { break; }
