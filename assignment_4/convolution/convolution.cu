@@ -1,8 +1,9 @@
 #include <stdio.h>
 #include <string.h>
 #include "timer.h"
+#include "getopt.h"
 
-#define image_height 1024
+#define image_height 1020
 #define image_width 1024
 #define filter_height 5
 #define filter_width 5
@@ -17,28 +18,28 @@
 
 #define SEED 1234
 
+static const float NORM = 25; 
+
 using namespace std;
 
 // TODO: use shared mem per block
 // TODO: use tiling
 
 void convolutionSeq(float *output, float *input, float *filter) {
-    //for each pixel in the output image
-
   timer sequentialTime = timer("Sequential");
   
   sequentialTime.start();
 
   for (int y=0; y < image_height; y++) {
     for (int x=0; x < image_width; x++) { 
-
+        float newval = 0.0; 
         //for each filter weight
         for (int i=0; i < filter_height; i++) {
             for (int j=0; j < filter_width; j++) {
-                output[y*image_width+x] += input[(y+i)*input_width+x+j] * filter[i*filter_width+j];
+                newval += input[(y+i)*input_width+x+j] * filter[i*filter_width+j];
             }
         }
-
+        output[y*image_width+x] = newval / NORM; 
     }
 }
 sequentialTime.stop(); 
@@ -57,10 +58,10 @@ __global__ void convolution_kernel(float *output, float *input, float *filter) {
             sum += input[(y+i)*input_width+x+j] * filter[i*filter_width+j];
         }
     }
-    output[y*image_width+x] = sum; 
+    output[y*image_width+x] = sum/NORM; 
 }
 
-void convolutionCUDA(float *output, float *input, float *filter) {
+void convolutionCUDA(float *output, float *input, float *filter) {   
     float *d_input; float *d_output; float *d_filter;
     cudaError_t err;
     timer kernelTime = timer("kernelTime");
