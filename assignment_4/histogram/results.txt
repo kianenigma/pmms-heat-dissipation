@@ -1,15 +1,17 @@
-With global memory and atomic:
+simple (with global memory and atomic):
+	histogram (seq): 		      = 0.0586545 seconds
+	Blocks: 58594
+	histogram simple (kernel): 	  = 0.0242664 seconds
+	histogram simple (memory): 	  = 0.0111263 seconds
+	histogram simple total: 	  = 0.0353927 seconds
+	results OK!
 
-Compute the histogram of a gray image with 30000000 pixels.
-histogram (seq): 		  	  = 0.0390527 seconds
-Blocks: 58594
-histogram (kernel): 		  = 0.00266227 seconds
-histogram (memory): 		  = 0.0109466 seconds
-results OK!
+	Compute the histogram of a gray image with 30000000 pixels.
+	histogram (seq): 		      = 0.0541317 seconds
+	Blocks: 58594
+	histogram simple (kernel): 	  = 0.0224181 seconds
+	histogram simple (memory): 	  = 0.0102231 seconds
+	histogram simple total: 	  = 0.0326411 seconds
+	results OK!
 
-Compute the histogram of a gray image with 30000000 pixels.
-histogram (seq): 		  	  = 0.0389776 seconds
-Blocks: 58594
-histogram (kernel): 		  = 0.00265893 seconds
-histogram (memory): 		  = 0.0117152 seconds
-results OK!
+advanced:
