@@ -1,8 +1,8 @@
 NVCC		= nvcc
 CC		= g++
 #CU_FLAGS	= -O3 -g -deviceemu
-CU_FLAGS	= -O3 -g -arch compute_20 -code sm_20 -Wno-deprecated-gpu-targets
-#--ptxas-options=-v
+CU_FLAGS	= -O3 -g -arch compute_20 -code sm_20 
+#--ptxas-options=-v -Wno-deprecated-gpu-targets
 #CU_FLAGS=-O2 -arch=sm_20
 CC_FLAGS	= -O3 -m64 -Wall
 

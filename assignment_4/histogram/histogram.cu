@@ -49,7 +49,7 @@ __global__ void histogramKernel(unsigned char* __restrict__ image, long img_size
     // write histogram of block back to global memory
     if(tid < hist_size) {
         // advance pointer to histograms to block specific one
-        histos += tid * hist_size;
+        histos += blockIdx.x * hist_size;
         histos[tid] = shared_histo[tid];
     }
 }
@@ -58,17 +58,17 @@ __global__ void reduceKernel(unsigned int* __restrict__ histos, const int blocks
     unsigned int tid = threadIdx.x;
     unsigned int sum = 0;
     
-    /*for(unsigned int i=0; i<blocks; i++) {
-        // advance pointer to histograms to block specific one
-        histos += i * hist_size;
+    for(unsigned int i=0; i<blocks; i++) {
         // sum up all values for this specific bin
         sum += histos[tid];
-    }*/
 
-    printf("%d\n", tid);
-    //sum += histos[tid];
+        // advance pointer to histograms to block specific one
+        histos += hist_size;
+    }
 
-    //histogram[tid] = sum;
+    //printf("%d\n", tid);
+
+    histogram[tid] = sum;
 }
 
 void histogramCuda(unsigned char* image, long img_size, unsigned int* histogram) {
@@ -132,31 +132,6 @@ void histogramCuda(unsigned char* image, long img_size, unsigned int* histogram)
     memoryTime.start();
     checkCudaCall(cudaMemcpy(histogram, deviceHisto, hist_size * sizeof(unsigned int), cudaMemcpyDeviceToHost));
     memoryTime.stop();
-
-
-    /*
-
-    // TODO: get rid of temp_histograms
-    unsigned int* temp_histograms = (unsigned int *)malloc(blocks * hist_size * sizeof(unsigned int));  
-
-    // copy result back
-    memoryTime.start();
-    checkCudaCall(cudaMemcpy(temp_histograms, deviceHistos, blocks * hist_size * sizeof(unsigned int), cudaMemcpyDeviceToHost));
-    memoryTime.stop();
-
-    // TODO: remove reduction
-    for(int b=0; b<hist_size; b++) {
-        histogram[b] = 0;
-    }
-
-    for(int i=0; i<blocks;i++) {
-        for(int b=0; b<hist_size; b++) {
-            histogram[b] += temp_histograms[(i*hist_size)+b];
-        }
-    }
-    */
-
-    //printf("\n\n b0=%d\n\n", b0);
 
     checkCudaCall(cudaFree(deviceImage));
     checkCudaCall(cudaFree(deviceHistos));
@@ -250,7 +225,8 @@ void histogramSeq(unsigned char* image, long img_size, unsigned int* histogram) 
 
 
 /*
-    make clean && make && prun -v -1 -np 1 -native '-C GTX480 --gres=gpu:1' ./myhistogram
+    old: make clean && make && prun -v -1 -np 1 -native '-l gpu=GTX480' ./myhistogram
+    new: make clean && make && prun -v -1 -np 1 -native '-C GTX480 --gres=gpu:1' ./myhistogram
     -s executes simple histogram kernel, default=advanced kernel
     -l size of histgram image, default=655360
 */
