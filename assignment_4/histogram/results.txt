@@ -1,0 +1,15 @@
+With global memory and atomic:
+
+Compute the histogram of a gray image with 30000000 pixels.
+histogram (seq): 		  	  = 0.0390527 seconds
+Blocks: 58594
+histogram (kernel): 		  = 0.00266227 seconds
+histogram (memory): 		  = 0.0109466 seconds
+results OK!
+
+Compute the histogram of a gray image with 30000000 pixels.
+histogram (seq): 		  	  = 0.0389776 seconds
+Blocks: 58594
+histogram (kernel): 		  = 0.00265893 seconds
+histogram (memory): 		  = 0.0117152 seconds
+results OK!
