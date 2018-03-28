@@ -27,7 +27,10 @@ static void checkCudaCall(cudaError_t result) {
     }
 }
 
-
+/**
+ * Calculates the histogram in parallel where each thread does one pixel of the image. 
+ * A block creates a local histogram in shared memory.
+ */
 __global__ void histogramKernel(unsigned char* __restrict__ image, long img_size, unsigned int* __restrict__ histos) {
     __shared__ unsigned int shared_histo[hist_size];
     unsigned int tid = threadIdx.x;
@@ -54,6 +57,9 @@ __global__ void histogramKernel(unsigned char* __restrict__ image, long img_size
     }
 }
 
+/**
+ * Reduces two histograms to one.
+ */
 __global__ void reduceKernel(unsigned int* __restrict__ histos, const int reduce_blocks, const int last_reduction_blocks) {
     unsigned int tid = threadIdx.x;
     
@@ -68,6 +74,9 @@ __global__ void reduceKernel(unsigned int* __restrict__ histos, const int reduce
     }
 }
 
+/**
+ * Prepares the GPU for kernel execution of the optimized histogram kernel and the reduce kernel.
+ */
 void histogramCuda(unsigned char* image, long img_size, unsigned int* histogram) {
     int threadBlockSize = 1024;
     int blocks;
@@ -109,6 +118,7 @@ void histogramCuda(unsigned char* image, long img_size, unsigned int* histogram)
     // check whether the kernel invocation was successful
     checkCudaCall(cudaGetLastError());
 
+    // reduce local histgrams of blocks to one final histogram
     int reduce_blocks = (int) ceil(blocks / 2.0);
     if(reduce_blocks % 2 != 0) {
         reduce_blocks++;
@@ -148,7 +158,9 @@ void histogramCuda(unsigned char* image, long img_size, unsigned int* histogram)
     cout << "histogram total: \t\t  = " << (kernelTime1.getTimeInSeconds() + memoryTime.getTimeInSeconds()) << " seconds" << endl;
 }
 
-
+/**
+ * Calculates the histogram in parallel where each thread does one pixel of the image.
+ */
 __global__ void histogramKernelSimple(unsigned char* __restrict__ image, long img_size, unsigned int* __restrict__ histogram) {
     int i = threadIdx.x + blockDim.x * blockIdx.x;
     if(i < img_size) {
@@ -156,6 +168,9 @@ __global__ void histogramKernelSimple(unsigned char* __restrict__ image, long im
     }
 }
 
+/**
+ * Prepares the GPU for kernel execution of the simple histogram kernel.
+ */
 void histogramCudaSimple(unsigned char* image, long img_size, unsigned int* histogram) {
     int threadBlockSize = 1024;
     int blocks;
@@ -212,6 +227,9 @@ void histogramCudaSimple(unsigned char* image, long img_size, unsigned int* hist
     cout << "histogram simple total: \t  = " << (kernelTime1.getTimeInSeconds() + memoryTime.getTimeInSeconds()) << " seconds" << endl;
 }
 
+/**
+ * Calculates the histogram sequentially.
+ */
 void histogramSeq(unsigned char* image, long img_size, unsigned int* histogram) {
   int i; 
 
@@ -229,25 +247,31 @@ void histogramSeq(unsigned char* image, long img_size, unsigned int* histogram) 
 }
 
 
-/*
-    old: make clean && make && prun -v -1 -np 1 -native '-l gpu=GTX480' ./myhistogram
-    new: make clean && make && prun -v -1 -np 1 -native '-C GTX480 --gres=gpu:1' ./myhistogram
-    -s executes simple histogram kernel, default=advanced kernel
-    -l size of histgram image, default=655360
-*/
+/**
+ * usage: ./myhistogram
+ *
+ * arguments:
+ *      -l {number of elements}     image size in 1D. default: 655360
+ *      -s                          execute kernel using simple version. default: optimized version
+ *      -b                          creates a black image. default: random
+ */
 int main(int argc, char* argv[]) {
     int c;
     long img_size = 655360;
     int simple = 0;
+    int black = 0;
 
 
-    while((c = getopt(argc, argv, "l:s")) != -1) {
+    while((c = getopt(argc, argv, "l:sb")) != -1) {
         switch(c) {
             case 'l':
                 img_size = atoi(optarg);
                 break;
             case 's':
                 simple = 1;
+                break;
+            case 'b':
+                black = 1;
                 break;
             case '?':
                 if(optopt == 'l') {
@@ -271,8 +295,11 @@ int main(int argc, char* argv[]) {
 
     // initialize the vectors.
     for(long i=0; i<img_size; i++) {
-        //image[i] = (unsigned char) (rand() % hist_size);
-        image[i] = 0;
+        if(black) {
+           image[i] = 0;
+        } else {
+            image[i] = (unsigned char) (rand() % hist_size);
+        }
     }
 
     cout << "Compute the histogram of a gray image with " << img_size << " pixels." << endl;
@@ -280,8 +307,10 @@ int main(int argc, char* argv[]) {
     histogramSeq(image, img_size, histogramS);
 
     if(simple == 1) {
+        // call simple implementation
         histogramCudaSimple(image, img_size, histogram);
     } else {
+        // call optimized
         histogramCuda(image, img_size, histogram);  
     }
 
