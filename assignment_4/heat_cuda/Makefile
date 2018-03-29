@@ -12,7 +12,7 @@ INCLUDES=-I../../include
 ifndef DEBUG
 CFLAGS=-O2
 LIB=
-NVCCFLAGS=-O2
+NVCCFLAGS=-O2 -arch=sm_20
 else
 CFLAGS=-O0 -g3
 LIB=

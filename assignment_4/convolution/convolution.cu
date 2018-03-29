@@ -24,6 +24,7 @@ using namespace std;
 
 // TODO: use shared mem per block
 // TODO: use tiling
+// TODO: use constant memory for filter values
 
 void convolutionSeq(float *output, float *input, float *filter) {
   timer sequentialTime = timer("Sequential");
