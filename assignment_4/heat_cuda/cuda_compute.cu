@@ -7,6 +7,7 @@
 #include "compute.h" 
 
 //TODO: use cuda restric ponter
+//TODO: fix reduction print 
 
 __constant__ __device__ double c_cdir = 0.25 * M_SQRT2 / (M_SQRT2 + 1.0);
 __constant__ __device__ double c_cdiag = 0.25 / (M_SQRT2 + 1.0);
@@ -138,12 +139,12 @@ static void summary_matrix(size_t w, size_t h, const double *a) {
     maxdiff[cell_base] = diff; 
 
     /* Mirror first and last column */
-    if ( j == 0 ) {
-        dst[row_base+w-1] = dst[row_base+1]; 
-    }
-    if ( j == w-3 ) {
-        dst[row_base+0] = dst[row_base+w-2]; 
-    }
+    // if ( j == 0 ) {
+    //     dst[row_base+w-1] = dst[row_base+1]; 
+    // }
+    // if ( j == w-3 ) {
+    //     dst[row_base+0] = dst[row_base+w-2]; 
+    // }
 }
 
 /**
@@ -261,8 +262,8 @@ __global__ void maxdiff_kernel_2(size_t w, size_t h, double* maxdiff) {
 
     for (unsigned int s=(blockDim.y*gridDim.y)/2; s>0; s>>=1) {
         if (i < s) {
-            if ( threadIdx.x == 0 && threadIdx.y == 0 && blockIdx.x == 0 && blockIdx.y == 0 )
-                printf("2Thread 0 0 0 will compare %d to %d \n", i, i+s);
+            // if ( threadIdx.x == 0 && threadIdx.y == 0 && blockIdx.x == 0 && blockIdx.y == 0 )
+            //     printf("2Thread 0 0 0 will compare %d to %d \n", i, i+s);
             if (maxdiff[_index(i+s,j,w)] > maxdiff[_index(i,j,w)]) {
                 maxdiff[_index(i,j,w)] = maxdiff[_index(i+s,j,w)]; 
             }
@@ -346,8 +347,9 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
     dim3 mirror_dim_grid(1, GRID_DIM_Y, 1); 
     dim3 mirror_dim_block(2, BLOCK_DIM, 1); 
 
+    //TODO BLOCK_DIM/2 is an optimization that only works with inputs of power of 2
     dim3 maxdiff_dim_grid(GRID_DIM_X, GRID_DIM_Y, 1); 
-    dim3 maxdiff_dim_block(BLOCK_DIM, BLOCK_DIM, 1); 
+    dim3 maxdiff_dim_block(BLOCK_DIM/2, BLOCK_DIM, 1); 
 
     dim3 maxdiff_2_dim_grid(1, GRID_DIM_Y, 1); 
     dim3 maxdiff_2_dim_block(1, BLOCK_DIM, 1);
@@ -371,7 +373,7 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
     /* maxdiff variables */
     double *h_maxdiff = (double *)malloc(MALLOC_VAL*sizeof(double)); 
     for (int i = 0; i < h*w; i++) { h_maxdiff[i] = 0; }
-        double *d_maxdiff; 
+    double *d_maxdiff; 
     checkCudaCall(cudaMalloc((void **) &d_maxdiff, MALLOC_VAL*sizeof(double))); 
     checkCudaCall(cudaMemcpy(d_maxdiff, h_maxdiff, MALLOC_VAL*sizeof(double), cudaMemcpyHostToDevice)); 
 
@@ -382,11 +384,12 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
         update_kernel<<<update_dim_grid, update_dim_block>>>(d_src, d_dst, d_cond,w, h, p->maxiter, d_maxdiff); 
 
         /* update first and last column */
-        // mirror_kernel<<<mirror_dim_grid, mirror_dim_block>>>(d_dst, w, h); 
+        mirror_kernel<<<mirror_dim_grid, mirror_dim_block>>>(d_dst, w, h); 
 
         /* calculate diff,  */
         // TODO: maybe would be more optimzied with an initial kernel half of the size in each row (see slides) 
         // TODO: this is not correct for 1000x1000
+        // REASON: https://stackoverflow.com/questions/40402053/why-does-cuda-8-0-sometimes-have-a-bad-memory-access-while-7-5-doesnt
         maxdiff_kernel<<<maxdiff_dim_grid, maxdiff_dim_block>>>(w, h, d_maxdiff);  
         maxdiff_kernel_2<<<maxdiff_2_dim_grid, maxdiff_2_dim_block>>>(w, h, d_maxdiff);
 
@@ -397,15 +400,14 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
         // printf("result at end of iter %d\n", it);
         // checkCudaCall(cudaMemcpy(h_dst, d_dst, MALLOC_VAL*sizeof(double), cudaMemcpyDeviceToHost)); 
         // summary_matrix(w, h, h_dst);
-        checkCudaCall(cudaMemcpy(h_maxdiff, d_maxdiff, w*h*sizeof(double), cudaMemcpyDeviceToHost)); 
-        printf("maxdiff at end of iter %d\n", it);
-        summary_matrix(w, h, h_maxdiff);
+        // checkCudaCall(cudaMemcpy(h_maxdiff, d_maxdiff, w*h*sizeof(double), cudaMemcpyDeviceToHost)); 
+        // printf("maxdiff at end of iter %d\n", it);
+        // summary_matrix(w, h, h_maxdiff);
 
         /* Copy just one value from maxdiff kernel out */
         checkCudaCall(cudaMemcpy(global_maxdiff, d_maxdiff+w+1, sizeof(double), cudaMemcpyDeviceToHost)); 
         if ( *global_maxdiff < p->threshold ) { break; }
 
-        break;
         if ( p->printreports ) { 
             if ( it % p->period == 0 ) {
                 checkCudaCall(cudaMemcpy(h_dst, d_dst, MALLOC_VAL*sizeof(double), cudaMemcpyDeviceToHost));
