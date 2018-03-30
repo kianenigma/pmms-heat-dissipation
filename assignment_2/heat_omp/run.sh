@@ -1,3 +1,7 @@
 #!/usr/bin/env bash
-make clean && make && \
-./heat_omp -n $2 -m $3 -c ./../../images/pat2_"$2"x"$3".pgm -t ./../../images/plasma_"$2"x"$3".pgm -i $4 -p $1 -e 0.00001 -r 
+make clean && make && ./heat_omp \
+-n $1 -m $2 \
+-c ./../../images/pat2_"$1"x"$2".pgm \
+-t ./../../images/plasma_"$1"x"$2".pgm \
+-e 0.0001 -i $3 -p 8 \
+#-k 10 -r

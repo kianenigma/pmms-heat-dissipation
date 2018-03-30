@@ -7,7 +7,14 @@
 #include "compute.h" 
 
 //TODO: use cuda restric ponter
-//TODO: fix reduction print 
+//TODO: fix reduction print
+
+// Just to be used by kernel tuner 
+// #define BLOCK_DIM 32
+// #define GRID_DIM_X 32
+// #define GRID_DIM_Y 32 
+
+int init = 0; 
 
 __constant__ __device__ double c_cdir = 0.25 * M_SQRT2 / (M_SQRT2 + 1.0);
 __constant__ __device__ double c_cdiag = 0.25 / (M_SQRT2 + 1.0);
@@ -139,12 +146,12 @@ static void summary_matrix(size_t w, size_t h, const double *a) {
     maxdiff[cell_base] = diff; 
 
     /* Mirror first and last column */
-    // if ( j == 0 ) {
-    //     dst[row_base+w-1] = dst[row_base+1]; 
-    // }
-    // if ( j == w-3 ) {
-    //     dst[row_base+0] = dst[row_base+w-2]; 
-    // }
+    if ( j == 0 ) {
+        dst[row_base+w-1] = dst[row_base+1]; 
+    }
+    if ( j == w-3 ) {
+        dst[row_base+0] = dst[row_base+w-2]; 
+    }
 }
 
 /**
@@ -349,7 +356,8 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
 
     //TODO BLOCK_DIM/2 is an optimization that only works with inputs of power of 2
     dim3 maxdiff_dim_grid(GRID_DIM_X, GRID_DIM_Y, 1); 
-    dim3 maxdiff_dim_block(BLOCK_DIM/2, BLOCK_DIM, 1); 
+    // dim3 maxdiff_dim_block(BLOCK_DIM/2, BLOCK_DIM, 1); 
+    dim3 maxdiff_dim_block(BLOCK_DIM, BLOCK_DIM, 1); 
 
     dim3 maxdiff_2_dim_grid(1, GRID_DIM_Y, 1); 
     dim3 maxdiff_2_dim_block(1, BLOCK_DIM, 1);
@@ -373,6 +381,7 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
     /* maxdiff variables */
     double *h_maxdiff = (double *)malloc(MALLOC_VAL*sizeof(double)); 
     for (int i = 0; i < h*w; i++) { h_maxdiff[i] = 0; }
+    
     double *d_maxdiff; 
     checkCudaCall(cudaMalloc((void **) &d_maxdiff, MALLOC_VAL*sizeof(double))); 
     checkCudaCall(cudaMemcpy(d_maxdiff, h_maxdiff, MALLOC_VAL*sizeof(double), cudaMemcpyHostToDevice)); 
@@ -387,22 +396,13 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
         mirror_kernel<<<mirror_dim_grid, mirror_dim_block>>>(d_dst, w, h); 
 
         /* calculate diff,  */
-        // TODO: maybe would be more optimzied with an initial kernel half of the size in each row (see slides) 
-        // TODO: this is not correct for 1000x1000
+        // TODO: this is not correct for big sizes like 1000x1000, 2000x2000, instead works with 1024x1024 etc.
         // REASON: https://stackoverflow.com/questions/40402053/why-does-cuda-8-0-sometimes-have-a-bad-memory-access-while-7-5-doesnt
-        maxdiff_kernel<<<maxdiff_dim_grid, maxdiff_dim_block>>>(w, h, d_maxdiff);  
-        maxdiff_kernel_2<<<maxdiff_2_dim_grid, maxdiff_2_dim_block>>>(w, h, d_maxdiff);
+        // maxdiff_kernel<<<maxdiff_dim_grid, maxdiff_dim_block>>>(w, h, d_maxdiff);  
+        // maxdiff_kernel_2<<<maxdiff_2_dim_grid, maxdiff_2_dim_block>>>(w, h, d_maxdiff);
 
-        // maxdiff_kernel_shared<<<maxdiff_dim_grid, maxdiff_dim_block, BLOCK_DIM*BLOCK_DIM*sizeof(double)>>>(w, h, d_maxdiff);
-        // maxdiff_kernel_shared_2<<<maxdiff_2_shared_dim_grid, maxdiff_2_shared_dim_block, GRID_DIM_X*GRID_DIM_Y*sizeof(double)>>>(w, h, d_maxdiff);
-
-        // DEBUG 
-        // printf("result at end of iter %d\n", it);
-        // checkCudaCall(cudaMemcpy(h_dst, d_dst, MALLOC_VAL*sizeof(double), cudaMemcpyDeviceToHost)); 
-        // summary_matrix(w, h, h_dst);
-        // checkCudaCall(cudaMemcpy(h_maxdiff, d_maxdiff, w*h*sizeof(double), cudaMemcpyDeviceToHost)); 
-        // printf("maxdiff at end of iter %d\n", it);
-        // summary_matrix(w, h, h_maxdiff);
+        maxdiff_kernel_shared<<<maxdiff_dim_grid, maxdiff_dim_block, BLOCK_DIM*BLOCK_DIM*sizeof(double)>>>(w, h, d_maxdiff);
+        maxdiff_kernel_shared_2<<<maxdiff_2_shared_dim_grid, maxdiff_2_shared_dim_block, GRID_DIM_X*GRID_DIM_Y*sizeof(double)>>>(w, h, d_maxdiff);
 
         /* Copy just one value from maxdiff kernel out */
         checkCudaCall(cudaMemcpy(global_maxdiff, d_maxdiff+w+1, sizeof(double), cudaMemcpyDeviceToHost)); 
@@ -412,6 +412,16 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
             if ( it % p->period == 0 ) {
                 checkCudaCall(cudaMemcpy(h_dst, d_dst, MALLOC_VAL*sizeof(double), cudaMemcpyDeviceToHost));
                 fill_report(w, h, h_dst, r, *global_maxdiff, it, before, after);  
+                
+                if (!init) {
+                    printf("Output:\n\n"
+                     "%13s %13s %13s %13s %13s %13s %13s\n",
+                     "Iterations",
+                     "T(min)", "T(max)", "T(diff)", "T(avg)", "Time", "FLOP/s");
+                    init = 1;
+                }
+                gettimeofday(&after, NULL);  
+
                 printf("%-13zu % .6e % .6e % .6e % .6e % .6e % .6e\n",
                  r->niter,
                  r->tmin,
@@ -422,7 +432,7 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
                  (double)p->N * (double)p->M * 
                  (double)(r->niter * FPOPS_PER_POINT_PER_ITERATION +
                     (double)r->niter / p->period) / r->time);
-                // report_results(p, r);
+
             }
         }
         /* swap pointers for next iteration, if exists */
@@ -436,7 +446,7 @@ extern "C" void cuda_do_compute(const struct parameters* p, struct results *r) {
     checkCudaCall(cudaGetLastError()); 
     checkCudaCall(cudaMemcpy(h_dst, d_dst, MALLOC_VAL*sizeof(double), cudaMemcpyDeviceToHost));
     gettimeofday(&after, NULL);  
-    // summary_matrix(w, h, h_dst);
+
     fill_report(w, h, h_dst, r, *global_maxdiff, it, before, after);     
 
     /* cleanup device */
