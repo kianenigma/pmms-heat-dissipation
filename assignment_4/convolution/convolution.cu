@@ -3,8 +3,8 @@
 #include "timer.h"
 #include "getopt.h"
 
-#define image_height 1020
-#define image_width 1024
+#define image_height 5000
+#define image_width 5000
 #define filter_height 5
 #define filter_width 5
 
@@ -18,15 +18,16 @@
 
 #define SEED 1234
 
-static const float NORM = 25; 
-
 using namespace std;
 
 // TODO: use shared mem per block
 // TODO: use tiling
 // TODO: use constant memory for filter values
 
-void convolutionSeq(float *output, float *input, float *filter) {
+// __constant__ float dc_filter[filter_width*filter_height]; 
+// __constant__ float dc_filter_sum = 0.0; 
+
+void convolutionSeq(float *output, float *input, float *filter, float filter_sum) {
   timer sequentialTime = timer("Sequential");
   
   sequentialTime.start();
@@ -40,7 +41,7 @@ void convolutionSeq(float *output, float *input, float *filter) {
                 newval += input[(y+i)*input_width+x+j] * filter[i*filter_width+j];
             }
         }
-        output[y*image_width+x] = newval / NORM; 
+        output[y*image_width+x] = newval / filter_sum; 
     }
 }
 sequentialTime.stop(); 
@@ -49,28 +50,35 @@ cout << "convolution (sequential): \t\t" << sequentialTime << endl;
 }
 
 
-__global__ void convolution_kernel(float *output, float *input, float *filter) {
+__global__ void convolution_kernel(float *output, float *input, float *filter, float filter_sum) {
     const unsigned int y = blockIdx.y * blockDim.y + threadIdx.y; 
     const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x; 
+
     float sum = 0.0;
+
+    if (x >= image_width || y >= image_height ) {
+        return;
+    }
 
     for (int i=0; i < filter_height; i++) {
         for (int j=0; j < filter_width; j++) {
             sum += input[(y+i)*input_width+x+j] * filter[i*filter_width+j];
         }
     }
-    output[y*image_width+x] = sum/NORM; 
+    output[y*image_width+x] = sum / filter_sum; 
 }
 
-void convolutionCUDA(float *output, float *input, float *filter) {   
-    float *d_input; float *d_output; float *d_filter;
+void convolutionCUDA(float *output, float *input, float *filter, float filter_sum) {   
+    float *d_input; float *d_output; 
+    float *d_filter; 
+
     cudaError_t err;
     timer kernelTime = timer("kernelTime");
     timer memoryTime = timer("memoryTime");
 
     // memory allocation
     err = cudaMalloc((void **)&d_input, input_height*input_width*sizeof(float));
-    if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMalloc d_input: %s\n", cudaGetErrorString( err )); }
+    if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMalloc d_input: [%d] %s\n",err, cudaGetErrorString( err )); }
     err = cudaMalloc((void **)&d_output, image_height*image_width*sizeof(float));
     if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMalloc d_output: %s\n", cudaGetErrorString( err )); }
     err = cudaMalloc((void **)&d_filter, filter_height*filter_width*sizeof(float));
@@ -86,6 +94,12 @@ void convolutionCUDA(float *output, float *input, float *filter) {
     // zero the result array 
     err = cudaMemset(d_output, 0, image_height*image_width*sizeof(float));
     if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMemset output: %s\n", cudaGetErrorString( err ));  }
+
+    // Copy constant memory data
+    // err = cudaMemcpyToSymbol(dc_filter_sum, &filter_sum, sizeof(float));
+    // if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMemcpyToSymbol output: %s\n", cudaGetErrorString( err ));  }
+    // err = cudaMemcpyToSymbol(dc_filter, filter, filter_width*filter_height*sizeof(float));
+    // if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMemcpyToSymbol output: %s\n", cudaGetErrorString( err ));  }
     memoryTime.stop();
 
     //setup the grid and thread blocks
@@ -94,11 +108,12 @@ void convolutionCUDA(float *output, float *input, float *filter) {
     //problem size divided by thread block size rounded up
     dim3 grid(int(ceilf(image_width/(float)threads.x)), int(ceilf(image_height/(float)threads.y)) );
 
-    printf("image [%d %d] | input [%d %d]\n", image_height, image_width, input_height, input_width);
-    printf("GRID DIM [%d %d] | BLOCK DIM [%d %d]\n", grid.y, grid.x, threads.y, threads.x);
+    // printf("image [%d %d] | input [%d %d]\n", image_height, image_width, input_height, input_width);
+    // printf("GRID DIM [%d %d] | BLOCK DIM [%d %d]\n", grid.y, grid.x, threads.y, threads.x);
+
     //measure the GPU function
     kernelTime.start();
-    convolution_kernel<<<grid, threads>>>(d_output, d_input, d_filter);
+    convolution_kernel<<<grid, threads>>>(d_output, d_input, d_filter, filter_sum);
     cudaDeviceSynchronize();
     kernelTime.stop();
 
@@ -116,8 +131,8 @@ void convolutionCUDA(float *output, float *input, float *filter) {
     if (err != cudaSuccess) { fprintf(stderr, "Error in freeing d_input: %s\n", cudaGetErrorString( err )); }
     err = cudaFree(d_output);
     if (err != cudaSuccess) { fprintf(stderr, "Error in freeing d_output: %s\n", cudaGetErrorString( err )); }
-    err = cudaFree(d_filter);
-    if (err != cudaSuccess) { fprintf(stderr, "Error in freeing d_filter: %s\n", cudaGetErrorString( err )); }
+    // err = cudaFree(d_filter);
+    // if (err != cudaSuccess) { fprintf(stderr, "Error in freeing d_filter: %s\n", cudaGetErrorString( err )); }
 
     cout << "convolution (kernel): \t\t" << kernelTime << endl;
     cout << "convolution (memory): \t\t" << memoryTime << endl;
@@ -146,9 +161,7 @@ int compare_arrays(float *a1, float *a2, int n) {
                 fprintf(stderr, "Error detected at i=%d, \t a1= \t %10.7e \t a2= \t %10.7e \t rel_error=\t %10.7e\n",i,a1[i],a2[i],diff);
             }
         }
-
     }
-
     return errors;
 }
 
@@ -156,6 +169,7 @@ int compare_arrays(float *a1, float *a2, int n) {
 int main() {
     int i; 
     int errors=0;
+    float filter_sum = 0.0; 
 
     //allocate arrays and fill them
     float *input = (float *) malloc(input_height * input_width * sizeof(float));
@@ -167,39 +181,46 @@ int main() {
         input[i] = (float) (i % SEED);
     }
 
-    //THis is specific for a W==H smoothening filteri, where W and H are odd.
+    //This is specific for a W==H smoothening filteri, where W and H are odd.
     for (i=0; i<filter_height * filter_width; i++) { 
       filter[i] = 1.0;
     }
 
-    for (i=filter_width+1; i<(filter_height - 1) * filter_width; i++) {
-        if (i % filter_width > 0 && i % filter_width < filter_width-1) filter[i]+=1.0; 
+    for (i = filter_width+1 ; i < (filter_height-1) * filter_width; i++) {
+        if (i % filter_width > 0 && i % filter_width < filter_width-1) {
+            filter[i]+=1.0; 
+        }
     }
 
-filter[filter_width*filter_height/2]=3.0;
-//end initialization
+    filter[filter_width*filter_height/2]=3.0;
+    //end initialization
 
-    //measure the CPU function
-convolutionSeq(output1, input, filter);
+    // sum filter values
+    for (i=0; i< filter_width*filter_height; i++) {
+        filter_sum += filter[i]; 
+    }
+
+
     //measure the GPU function
-convolutionCUDA(output2, input, filter);
-
+    convolutionCUDA(output2, input, filter, filter_sum);
+    //measure the CPU function
+    convolutionSeq(output1, input, filter, filter_sum);
 
     //check the result
-errors += compare_arrays(output1, output2, image_height*image_width);
-if (errors > 0) {
-    printf("TEST FAILED! %d errors!\n", errors);
-} else {
-    printf("TEST PASSED!\n");
-}
+    errors += compare_arrays(output1, output2, image_height*image_width);
+    if (errors > 0) {
+        printf("TEST FAILED! %d errors!\n", errors);
+    } else {
+        printf("TEST PASSED!\n");
+    }
 
 
-free(filter);
-free(input);
-free(output1);
-free(output2);
+    free(filter);
+    free(input);
+    free(output1);
+    free(output2);
 
-return 0;
+    return 0;
 }
 
 
