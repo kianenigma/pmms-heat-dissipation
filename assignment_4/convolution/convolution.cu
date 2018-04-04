@@ -24,8 +24,8 @@ using namespace std;
 // TODO: use tiling
 // TODO: use constant memory for filter values
 
-// __constant__ float dc_filter[filter_width*filter_height]; 
-// __constant__ float dc_filter_sum = 0.0; 
+__constant__ float dc_filter[filter_width*filter_height]; 
+__constant__ float dc_filter_sum = 0.0; 
 
 void convolutionSeq(float *output, float *input, float *filter, float filter_sum) {
   timer sequentialTime = timer("Sequential");
@@ -50,10 +50,9 @@ cout << "convolution (sequential): \t\t" << sequentialTime << endl;
 }
 
 
-__global__ void convolution_kernel(float *output, float *input, float *filter, float filter_sum) {
+__global__ void convolution_kernel(float *output, float *input) {
     const unsigned int y = blockIdx.y * blockDim.y + threadIdx.y; 
     const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x; 
-
     float sum = 0.0;
 
     if (x >= image_width || y >= image_height ) {
@@ -62,15 +61,14 @@ __global__ void convolution_kernel(float *output, float *input, float *filter, f
 
     for (int i=0; i < filter_height; i++) {
         for (int j=0; j < filter_width; j++) {
-            sum += input[(y+i)*input_width+x+j] * filter[i*filter_width+j];
+            sum += input[(y+i)*input_width+x+j] * dc_filter[i*filter_width+j];
         }
     }
-    output[y*image_width+x] = sum / filter_sum; 
+    output[y*image_width+x] = sum / dc_filter_sum; 
 }
 
 void convolutionCUDA(float *output, float *input, float *filter, float filter_sum) {   
     float *d_input; float *d_output; 
-    float *d_filter; 
 
     cudaError_t err;
     timer kernelTime = timer("kernelTime");
@@ -81,25 +79,22 @@ void convolutionCUDA(float *output, float *input, float *filter, float filter_su
     if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMalloc d_input: [%d] %s\n",err, cudaGetErrorString( err )); }
     err = cudaMalloc((void **)&d_output, image_height*image_width*sizeof(float));
     if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMalloc d_output: %s\n", cudaGetErrorString( err )); }
-    err = cudaMalloc((void **)&d_filter, filter_height*filter_width*sizeof(float));
-    if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMalloc d_filter: %s\n", cudaGetErrorString( err )); }
 
     memoryTime.start();
     // host to device 
     err = cudaMemcpy(d_input, input, input_height*input_width*sizeof(float), cudaMemcpyHostToDevice);
     if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMemcpy host to device input: %s\n", cudaGetErrorString( err ));  }
-    err = cudaMemcpy(d_filter, filter, filter_height*filter_width*sizeof(float), cudaMemcpyHostToDevice);
-    if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMemcpy host to device filter: %s\n", cudaGetErrorString( err ));  }
     
     // zero the result array 
     err = cudaMemset(d_output, 0, image_height*image_width*sizeof(float));
     if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMemset output: %s\n", cudaGetErrorString( err ));  }
 
     // Copy constant memory data
-    // err = cudaMemcpyToSymbol(dc_filter_sum, &filter_sum, sizeof(float));
-    // if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMemcpyToSymbol output: %s\n", cudaGetErrorString( err ));  }
-    // err = cudaMemcpyToSymbol(dc_filter, filter, filter_width*filter_height*sizeof(float));
-    // if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMemcpyToSymbol output: %s\n", cudaGetErrorString( err ));  }
+    err = cudaMemcpyToSymbol(dc_filter_sum, &filter_sum, sizeof(float));
+    if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMemcpyToSymbol output: %s\n", cudaGetErrorString( err ));  }
+    err = cudaMemcpyToSymbol(dc_filter, filter, filter_width*filter_height*sizeof(float));
+    if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMemcpyToSymbol output: %s\n", cudaGetErrorString( err ));  }
+
     memoryTime.stop();
 
     //setup the grid and thread blocks
@@ -108,12 +103,12 @@ void convolutionCUDA(float *output, float *input, float *filter, float filter_su
     //problem size divided by thread block size rounded up
     dim3 grid(int(ceilf(image_width/(float)threads.x)), int(ceilf(image_height/(float)threads.y)) );
 
-    // printf("image [%d %d] | input [%d %d]\n", image_height, image_width, input_height, input_width);
-    // printf("GRID DIM [%d %d] | BLOCK DIM [%d %d]\n", grid.y, grid.x, threads.y, threads.x);
+    printf("image [%d %d] | input [%d %d]\n", image_height, image_width, input_height, input_width);
+    printf("GRID DIM [%d %d] | BLOCK DIM [%d %d]\n", grid.y, grid.x, threads.y, threads.x);
 
     //measure the GPU function
     kernelTime.start();
-    convolution_kernel<<<grid, threads>>>(d_output, d_input, d_filter, filter_sum);
+    convolution_kernel<<<grid, threads>>>(d_output, d_input);
     cudaDeviceSynchronize();
     kernelTime.stop();
 
