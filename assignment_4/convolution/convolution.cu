@@ -3,8 +3,8 @@
 #include "timer.h"
 #include "getopt.h"
 
-#define image_height 5000
-#define image_width 5000
+#define image_height 10000
+#define image_width 10000
 #define filter_height 5
 #define filter_width 5
 
@@ -19,10 +19,6 @@
 #define SEED 1234
 
 using namespace std;
-
-// TODO: use shared mem per block
-// TODO: use tiling
-// TODO: use constant memory for filter values
 
 __constant__ float dc_filter[filter_width*filter_height]; 
 __constant__ float dc_filter_sum = 0.0; 
@@ -52,10 +48,14 @@ cout << "convolution (sequential): \t\t" << sequentialTime << endl;
 
 __global__ void convolution_kernel(float *output, float *input) {
     const unsigned int y = blockIdx.y * blockDim.y + threadIdx.y; 
-    const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x; 
+    const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int b_x_start = blockIdx.x * blockDim.x;
+    const unsigned int b_y_start = blockIdx.y * blockDim.y;
+    const unsigned int t_y = threadIdx.y;
+    const unsigned int t_x = threadIdx.x;
     float sum = 0.0;
 
-    if (x >= image_width || y >= image_height ) {
+    /*if (x >= image_width || y >= image_height ) {
         return;
     }
 
@@ -64,7 +64,29 @@ __global__ void convolution_kernel(float *output, float *input) {
             sum += input[(y+i)*input_width+x+j] * dc_filter[i*filter_width+j];
         }
     }
-    output[y*image_width+x] = sum / dc_filter_sum; 
+    output[y*image_width+x] = sum / dc_filter_sum;*/
+
+    const unsigned int s_height = block_size_y + border_height;
+    const unsigned int s_width = block_size_x + border_width;
+    __shared__ float s_input[s_height * s_width];
+
+    // only first thread in each block
+    if(t_y == 0 && t_x == 0) {
+        for (int i=0; i < s_height; i++) {
+            for (int j=0; j < s_width; j++) {
+                s_input[i*s_width+j] = input[(i+b_y_start)*input_width+j+b_x_start];
+            }
+        }
+    }
+    __syncthreads();
+
+    for (int i=0; i < filter_height; i++) {
+        for (int j=0; j < filter_width; j++) {
+            sum += s_input[(t_y+i)*s_width+t_x+j] * dc_filter[i*filter_width+j];
+        }
+    }
+    output[y*image_width+x] = sum / dc_filter_sum;
+    
 }
 
 void convolutionCUDA(float *output, float *input, float *filter, float filter_sum) {   
@@ -85,10 +107,6 @@ void convolutionCUDA(float *output, float *input, float *filter, float filter_su
     err = cudaMemcpy(d_input, input, input_height*input_width*sizeof(float), cudaMemcpyHostToDevice);
     if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMemcpy host to device input: %s\n", cudaGetErrorString( err ));  }
     
-    // zero the result array 
-    err = cudaMemset(d_output, 0, image_height*image_width*sizeof(float));
-    if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMemset output: %s\n", cudaGetErrorString( err ));  }
-
     // Copy constant memory data
     err = cudaMemcpyToSymbol(dc_filter_sum, &filter_sum, sizeof(float));
     if (err != cudaSuccess) { fprintf(stderr, "Error in cudaMemcpyToSymbol output: %s\n", cudaGetErrorString( err ));  }
