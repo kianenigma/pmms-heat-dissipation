@@ -45,17 +45,15 @@ cout << "convolution (sequential): \t\t" << sequentialTime << endl;
 
 }
 
-
+/**
+    Convolution kernel with constant memory of filter.
+*/
 __global__ void convolution_kernel(float *output, float *input) {
     const unsigned int y = blockIdx.y * blockDim.y + threadIdx.y; 
-    const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
-    const unsigned int b_x_start = blockIdx.x * blockDim.x;
-    const unsigned int b_y_start = blockIdx.y * blockDim.y;
-    const unsigned int t_y = threadIdx.y;
-    const unsigned int t_x = threadIdx.x;
+    const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x; 
     float sum = 0.0;
 
-    /*if (x >= image_width || y >= image_height ) {
+    if (x >= image_width || y >= image_height ) {
         return;
     }
 
@@ -64,11 +62,49 @@ __global__ void convolution_kernel(float *output, float *input) {
             sum += input[(y+i)*input_width+x+j] * dc_filter[i*filter_width+j];
         }
     }
-    output[y*image_width+x] = sum / dc_filter_sum;*/
+    output[y*image_width+x] = sum / dc_filter_sum; 
+}
 
+/**
+    Naive convolution kernel with no further optimization.
+*/
+__global__ void convolution_kernel_naive(float *output, float *input, float *filter, float filter_sum) {
+    const unsigned int y = blockIdx.y * blockDim.y + threadIdx.y; 
+    const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x; 
+
+    float sum = 0.0;
+
+    if (x >= image_width || y >= image_height ) {
+        return;
+    }
+
+    for (int i=0; i < filter_height; i++) {
+        for (int j=0; j < filter_width; j++) {
+            sum += input[(y+i)*input_width+x+j] * filter[i*filter_width+j];
+        }
+    }
+    output[y*image_width+x] = sum / filter_sum; 
+}
+
+/**
+    Convolution kernel with constant memory of filter shared memory usage of inputs per block.
+    Results as expected but slow performance due to one thread working all other threads in a block idling.
+*/
+__global__ void convolution_kernel_shared_mem_naive(float *output, float *input) {
+    const unsigned int y = blockIdx.y * blockDim.y + threadIdx.y; 
+    const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int b_x_start = blockIdx.x * blockDim.x;
+    const unsigned int b_y_start = blockIdx.y * blockDim.y;
+    const unsigned int t_y = threadIdx.y;
+    const unsigned int t_x = threadIdx.x;
+    float sum = 0.0;
     const unsigned int s_height = block_size_y + border_height;
     const unsigned int s_width = block_size_x + border_width;
     __shared__ float s_input[s_height * s_width];
+
+    if (x >= image_width || y >= image_height ) {
+        return;
+    }
 
     // only first thread in each block
     if(t_y == 0 && t_x == 0) {
@@ -85,8 +121,59 @@ __global__ void convolution_kernel(float *output, float *input) {
             sum += s_input[(t_y+i)*s_width+t_x+j] * dc_filter[i*filter_width+j];
         }
     }
+
     output[y*image_width+x] = sum / dc_filter_sum;
-    
+}
+
+/**
+    Convolution kernel with constant memory of filter shared memory usage of inputs per block.
+    Results were not as expected when copying values from global memory to shared memory in parallel. 
+*/
+__global__ void convolution_kernel_shared_mem_parallel_try(float *output, float *input) {
+    const unsigned int y = blockIdx.y * blockDim.y + threadIdx.y; 
+    const unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const unsigned int b_x_start = blockIdx.x * blockDim.x;
+    const unsigned int b_y_start = blockIdx.y * blockDim.y;
+    const unsigned int t_y = threadIdx.y;
+    const unsigned int t_x = threadIdx.x;
+    float sum = 0.0;
+
+    if (x >= image_width || y >= image_height ) {
+        return;
+    }
+
+    const unsigned int s_height = block_size_y + border_height;
+    const unsigned int s_width = block_size_x + border_width;
+    __shared__ float s_input[s_height * s_width];
+
+    // copy values 1 to 1 from global memory to shared memory in parallel
+    s_input[t_y*s_width+t_x] = input[y*input_width+x];
+
+    // copy the 4 extra columns for every row
+    if(t_x == 0) {
+        for (int i=block_size_x; i < s_width; i++) {
+            s_input[t_y*s_width+i] = input[y*input_width+x+i];
+        }
+    }
+
+    // copy the 4 extra rows
+    if(t_x == 1 && t_y < 4) {
+        const unsigned int row = t_y+block_size_y;
+        const unsigned int row_global = y+block_size_y;
+
+        for (int i=0; i < s_width; i++) {
+            s_input[row*s_width+i] = input[row_global*input_width+i+b_x_start];
+        }
+    }
+    __syncthreads();
+
+    for (int i=0; i < filter_height; i++) {
+        for (int j=0; j < filter_width; j++) {
+            sum += s_input[(t_y+i)*s_width+t_x+j] * dc_filter[i*filter_width+j];
+        }
+    }
+
+    output[y*image_width+x] = sum / dc_filter_sum;
 }
 
 void convolutionCUDA(float *output, float *input, float *filter, float filter_sum) {   
