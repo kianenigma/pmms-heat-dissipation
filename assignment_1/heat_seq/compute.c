@@ -138,7 +138,6 @@ void do_compute(const struct parameters* p, struct results *r)
                     t_surface[row_down_start_idx + col_right]
             ); // diagonal neighbours
 
-
             // calculate absolute diff between new and old value
             abs_diff.d = t_surface_index - temp_index;
             abs_diff.i = abs_bitmask & abs_diff.i;

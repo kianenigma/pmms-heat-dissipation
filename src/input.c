@@ -85,8 +85,8 @@ void read_parameters(struct parameters* p, int argc, char **argv)
     p->io_tmax = 100.0;
     p->nthreads = 1;
     p->printreports = 0;
-    conductivity_fname = "./../../images/pat1_100x150.pgm";
-    tinit_fname = "./../../images/pat1_100x150.pgm";
+    conductivity_fname = "./../../images/pat2_150x100.pgm";
+    tinit_fname = "./../../images/plasma_150x100.pgm";
 
     while ((ch = getopt(argc, argv, "c:e:hH:i:k:L:m:M:n:N:p:t:r")) != -1)
     {
