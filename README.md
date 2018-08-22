@@ -20,7 +20,7 @@ All assignments are compiled base on the [Make Build System](https://www.gnu.org
 -r 0 # print intermediate reports every reduction cycle
 ```
 
-Change the parameters at runtime accordingly if you want to modify any of them (e.g. increase the maximum number of iterations). The input files must follow the [PGM](http://netpbm.sourceforge.net/doc/pgm.html) file format standard. Two sets of inputs are included in this repository, namely a `150x100` set for quick testing and a `5000x5000` to better observe the speedup. A running example of the first assignment is as follows: 
+Change the parameters at runtime accordingly if you want to modify any of them (e.g. increase the maximum number of iterations). The input files must follow the [PGM](http://netpbm.sourceforge.net/doc/pgm.html) file format standard. Two sets of inputs are included in this repository, namely a `150x100` set for quick testing and a `1000x1000` to better observe the speedup. A running example of the first assignment is as follows: 
 
 ![Example execution of the first assignment](assets/ss-1.png)
 
