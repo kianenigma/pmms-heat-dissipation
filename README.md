@@ -36,7 +36,7 @@ More information can be found in the [report](assets/report-assignment-2.pdf) (p
 
 
 ## Assignment 3 - Parallelization with PThreads
-short While OpenMP provides handy and easy-to-use pragmas to rapidly migrate an application from single core to multi-core, it disallows the developer to have full access over the parallel application. To the contrary, the [PThread](https://en.wikipedia.org/wiki/POSIX_Threads) library provides low-level functionality for multi-core application where the programmer has complete access over the flow of the application. Additionally, the famous [histogram](https://en.wikipedia.org/wiki/Histogram) application, and a pipe-sort, are also implemented with PThreads as an extra demonstration. This image processing algorithm is a famous example for parallel programming. The histogram is parallelized based on multiple approaches, explained in the report. 
+While OpenMP provides handy and easy-to-use pragmas to rapidly migrate an application from single core to multi-core, it disallows the developer to have full access over the parallel application. To the contrary, the [PThread](https://en.wikipedia.org/wiki/POSIX_Threads) library provides low-level functionality for multi-core applications where the programmer has complete access over the flow of the application. Additionally, the famous [histogram](https://en.wikipedia.org/wiki/Histogram) application, and a pipe-sort, are also implemented with PThreads as an extra demonstration. This image processing algorithm is a famous example for parallel programming. The histogram is parallelized based on multiple approaches, explained in the report. 
 
 More information can be found in the [report](assets/report-assignment-3.pdf) (pdf).
 
